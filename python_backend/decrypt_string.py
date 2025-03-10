@@ -32,3 +32,6 @@ def decrypt_base64(encrypted_text: str) -> str:
     encrypted_bytes = base64.b64decode(encrypted_text)
     decrypted = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
     return decrypted.decode('utf-8')
+
+if __name__ == "__main__":
+    print(decrypt_string("54bec44e75f0801b2bb67eb364252921df53d3829cf2566e34625e82d1e2a190"))

@@ -30,6 +30,19 @@ export default function Home() {
             </p>
           </div>
 
+          {/* Note about possible login delay */}
+          <Alert className="mb-6 bg-yellow-800/80 p-5 rounded-2xl text-white border border-yellow-600 shadow-md">
+            <AlertTitle className="text-white font-bold">
+              <ShieldAlert className="inline-block mr-2" /> Login Delay Notice
+            </AlertTitle>
+            <AlertDescription className="text-gray-200">
+              <span>
+                The login might take up to 10 seconds. Please be patient while we authenticate your account.
+                If it takes longer, you can try again or contact support.
+              </span>
+            </AlertDescription>
+          </Alert>
+
           <Alert className="mb-6 bg-red-900/80 p-5 rounded-2xl text-white border border-red-600 shadow-md">
             <AlertTitle className="text-white font-bold">
               <ShieldAlert className="inline-block mr-2" /> Security Warning

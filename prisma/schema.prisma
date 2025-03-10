@@ -18,3 +18,8 @@ model accountData {
   password  String
   urlEnding String @unique
 }
+
+model cashedWishlist {
+  urlEnding   String   @unique
+  cash        Bytes
+}

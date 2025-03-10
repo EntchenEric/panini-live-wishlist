@@ -2,9 +2,9 @@ from flask import Flask, request, jsonify
 from test_account import handle_login
 from send_wishlist import send_wishlist
 from get_wishlist import get_wishlist
-from encrypt import encrypt
 from decrypt_string import decrypt_string
 from flask_cors import CORS
+import json
 
 app = Flask(__name__)
 CORS(app)
@@ -76,20 +76,25 @@ def get_wishlist_complete_api():
     email = data.get('email')
     password = data.get('password')
 
+    print(email)
+    print(password)
+
     email = decrypt_string(email)
     password = decrypt_string(password)
 
-    if not email:
+    print(email)
+    print(password)
+
+    if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
-    try:
-        result = send_wishlist(email, password)
-        if result == "Login failed":
-            return jsonify({"message": "Login failed"}), 400
-        result = get_wishlist(email)
-        return jsonify({"message": "Got Wishlist successfull", "result": encrypt(str(result))}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    print("sending wishlist...")
+    result = send_wishlist(email, password)
+    if result == "Login failed":
+        return jsonify({"message": "Login failed"}), 400
+    print("email send successfull.")
+    result = get_wishlist(email)
+    return jsonify({"message": "Got Wishlist successfull", "result": json.dumps(result)}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
