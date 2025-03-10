@@ -7,6 +7,11 @@ from selenium.webdriver.support import expected_conditions as EC
 import tempfile
 import os
 from time import sleep
+from dotenv import load_dotenv
+
+load_dotenv()
+
+destination_email = os.getenv("EMAIL_USER")
 
 options = Options()
 options.add_argument("--disable-blink-features=AutomationControlled")
@@ -62,7 +67,8 @@ def send_wishlist(email, password):
         emails_input = WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((By.XPATH, "//textarea[@name='emails']"))
         )
-        driver.execute_script("arguments[0].value = arguments[1];", emails_input, 'wishlist@panini.entcheneric.com')
+        print("Destination: ", destination_email)
+        driver.execute_script("arguments[0].value = arguments[1];", emails_input, destination_email)
 
         message_input = WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((By.XPATH, "//textarea[@name='message']"))
@@ -78,4 +84,4 @@ def send_wishlist(email, password):
         sleep(20)
 
         driver.quit()
-        return "Wishlist updated successfull."
+        return "Wishlist send successfull."

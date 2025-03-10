@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from test_account import handle_login
 from send_wishlist import send_wishlist
+from get_wishlist import get_wishlist
 
 app = Flask(__name__)
 
@@ -19,8 +20,8 @@ def login():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/update_wishlist', methods=['POST'])
-def update_wishlist():
+@app.route('/send_wishlist', methods=['POST'])
+def send_wishlist_api():
     data = request.json
     email = data.get('email')
     password = data.get('password')
@@ -31,6 +32,20 @@ def update_wishlist():
     try:
         result = send_wishlist(email, password)
         return jsonify({"message": "Login successful", "result": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/get_wishlist', methods=['POST'])
+def get_wishlist_api():
+    data = request.json
+    email = data.get('email')
+
+    if not email:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    try:
+        result = get_wishlist(email)
+        return jsonify({"message": "Got Wishlist successfull", "result": str(result)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
