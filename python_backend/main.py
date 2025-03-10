@@ -12,7 +12,7 @@ load_dotenv()
 
 port = os.getenv('BACKEND_PORT')
 
-app = Flask(__name__, port = port)
+app = Flask(__name__)
 CORS(app)
 
 @app.route('/test_account', methods=['POST'])
@@ -103,4 +103,4 @@ def get_wishlist_complete_api():
     return jsonify({"message": "Got Wishlist successfull", "result": json.dumps(result)}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False, port = port)
