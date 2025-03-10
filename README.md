@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📚 Panini Live Wishlist  
 
-## Getting Started
+Easily create and share a **live-updating** wishlist for your Panini comics!  
 
-First, run the development server:
+## 🚀 Why?  
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Panini only allows wishlist sharing via email, and once sent, the list quickly becomes outdated. If you buy a comic, your previously shared wishlist doesn't reflect the change.  
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To solve this, I created a website that generates a **sharable live link** to your wishlist, ensuring it's always up to date!  
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📊 Project Status  
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+![Progress Bar](https://progress-bars.entcheneric.com/bar?progress=65&color=%232563eb&backgroundColor=%23f3f4f6&height=20&width=400&borderRadius=10&striped=true&animated=true&animationSpeed=1&initialAnimationSpeed=1&colorGradient=linear-gradient%2890deg%2C+%23ec4899%2C+%23d946ef%2C+%23a855f7%29)  
 
-## Learn More
+## ✅ Planned Features  
 
-To learn more about Next.js, take a look at the following resources:
+- [ ] Allow users to delete their account  
+- [ ] Enable customization of the account URL  
+- [ ] Add an option to change account passwords  
+- [ ] Introduce priority settings for wishlist items  
+- [ ] Implement dependency notes for wishlist items (e.g., if a comic is a **prequel** to another, the second comic should include a note recommending they be bought together)  
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🔒 Security Notice  
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+This website **stores passwords in the database**. While they are encrypted, they are **not hashed**.  
 
-## Deploy on Vercel
+⚠️ **Important:** Although I will never access or misuse your data, remember that I'm just a stranger on the internet. Please use unique passwords and practice good security habits.  
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---  
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+💡 *Have feedback or feature requests? Feel free to contribute!*  
