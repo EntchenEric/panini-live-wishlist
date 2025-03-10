@@ -4,8 +4,10 @@ from send_wishlist import send_wishlist
 from get_wishlist import get_wishlist
 from encrypt import encrypt
 from decrypt import decrypt
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route('/test_account', methods=['POST'])
 def login():
