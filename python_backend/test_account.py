@@ -64,4 +64,4 @@ def handle_login(email, password):
 
     except:
         driver.quit()
-        return "Login falied"
+        return "Login failed"
