@@ -1,7 +1,10 @@
 import os
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
+from Crypto.Util.Padding import unpad
 import base64
+from dotenv import load_dotenv
+
+load_dotenv()
 
 secret_key = os.getenv('SECRET_KEY')
 secret_buffer = os.getenv('SECRET_BUFFER')
@@ -17,12 +20,15 @@ if len(secret_buffer) != 16:
 key = bytes(secret_key, 'utf-8')
 iv = bytes(secret_buffer, 'utf-8')
 
-def encrypt(text: str) -> str:
+def decrypt_string(encrypted_text: str) -> str:
+    print("decrypting: ", encrypted_text)
     cipher = AES.new(key, AES.MODE_CBC, iv)
-    encrypted = cipher.encrypt(pad(text.encode('utf-8'), AES.block_size))
-    return encrypted.hex()
+    encrypted_bytes = bytes.fromhex(encrypted_text)
+    decrypted = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
+    return decrypted.decode('utf-8')
 
-def encrypt_base64(text: str) -> str:
+def decrypt_base64(encrypted_text: str) -> str:
     cipher = AES.new(key, AES.MODE_CBC, iv)
-    encrypted = cipher.encrypt(pad(text.encode('utf-8'), AES.block_size))
-    return base64.b64encode(encrypted).decode('utf-8')
+    encrypted_bytes = base64.b64decode(encrypted_text)
+    decrypted = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
+    return decrypted.decode('utf-8')

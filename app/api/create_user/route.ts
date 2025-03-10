@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
     const password = req.nextUrl.searchParams.get('password')
     const urlEnding = req.nextUrl.searchParams.get('urlEnding')
 
+    const backendUrl: string | undefined = process.env.BACKEND_URL;
+
     if (!email || !password || !urlEnding) {
         return new NextResponse(
             JSON.stringify({ message: 'Email, password, or urlEnding not provided.' }),
@@ -24,8 +26,25 @@ export async function GET(req: NextRequest) {
     const passwordStr = Array.isArray(password) ? password[0] : password;
     const urlEndingStr = Array.isArray(urlEnding) ? urlEnding[0] : urlEnding;
 
+    const response = await fetch(backendUrl + "/test_account", {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            email: encrypt(emailStr),
+            password: encrypt(password)
+        })
+    })
+
+    if (response.status !== 200) {
+        return new NextResponse(
+            JSON.stringify({ message: "Email or Password are wrong." }),
+            { status: 401 }
+        )
+    }
+
     try {
-        // Check if account with this email exists
         const existingAccount = await prisma.accountData.findUnique({
             where: {
                 email: emailStr,

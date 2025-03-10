@@ -51,13 +51,22 @@ export default function Home() {
           <Separator className="my-6 bg-gray-700" />
 
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
-            <Button variant="destructive" className="flex-1 p-3 rounded-xl">
+            <Button
+              variant="destructive"
+              className="flex-1 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:bg-red-600"
+            >
               <Trash className="inline-block mr-2" /> Delete Account
             </Button>
-            <Button variant="secondary" className="flex-1 p-3 rounded-xl">
+            <Button
+              variant="secondary"
+              className="flex-1 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:bg-blue-600"
+            >
               <Key className="inline-block mr-2" /> Change Password
             </Button>
-            <Button variant="secondary" className="flex-1 p-3 rounded-xl">
+            <Button
+              variant="secondary"
+              className="flex-1 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:bg-green-600"
+            >
               <Link className="inline-block mr-2" /> Edit URL
             </Button>
           </div>

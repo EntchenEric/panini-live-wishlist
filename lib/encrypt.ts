@@ -1,12 +1,27 @@
-import CryptoJS from 'crypto-js';
+import crypto from 'crypto';
 
-const encrypt = (text: string) => {
-    const secretKey: string | undefined = process.env.SECRET_KEY;
-    if (!secretKey) {
-        throw "No secret key defined in env."
+const encrypt = (text: string): string => {
+    const secretKey = process.env.SECRET_KEY;
+    const secretBuffer = process.env.SECRET_BUFFER;
+
+    if (!secretKey || !secretBuffer) {
+        throw new Error('SECRET_KEY or SECRET_BUFFER is missing in environment variables');
     }
-    const encrypted = CryptoJS.AES.encrypt(text, secretKey).toString();
+
+    if (secretKey.length !== 32) {
+        throw new Error('SECRET_KEY must be 32 bytes');
+    }
+
+    if (secretBuffer.length !== 16) {
+        throw new Error('SECRET_BUFFER must be 16 bytes');
+    }
+
+    const key = Buffer.from(secretKey, 'utf8');
+    const iv = Buffer.from(secretBuffer, 'utf8');
+
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
     return encrypted;
 };
-
 export { encrypt }
