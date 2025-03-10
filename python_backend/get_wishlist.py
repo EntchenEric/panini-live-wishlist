@@ -27,11 +27,9 @@ def get_wishlist(email: str):
             if isinstance(response_part, tuple):
                 byte_data = response_part[1]
                 
-                # Check if the data is a string, then convert to bytes
                 if isinstance(byte_data, str):
                     byte_data = byte_data.encode('utf-8')
                 
-                # Parse email as string if needed
                 msg = message_from_string(byte_data.decode('utf-8'))
 
                 subject, encoding = decode_header(msg["Subject"])[0]

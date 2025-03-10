@@ -64,7 +64,7 @@ def get_wishlist_api():
 
     
 @app.route('/get_wishlist_complete', methods=['POST'])
-def get_wishlist_api():
+def get_wishlist_complete_api():
     data = request.json
     email = data.get('email')
     password = data.get('password')
