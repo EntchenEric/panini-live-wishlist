@@ -2,6 +2,9 @@ import os
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 import base64
+from dotenv import load_dotenv
+
+load_dotenv()
 
 secret_key = os.getenv('SECRET_KEY')
 secret_buffer = os.getenv('SECRET_BUFFER')

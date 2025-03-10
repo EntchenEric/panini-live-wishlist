@@ -5,8 +5,14 @@ from get_wishlist import get_wishlist
 from decrypt_string import decrypt_string
 from flask_cors import CORS
 import json
+from dotenv import load_dotenv
+import os
 
-app = Flask(__name__)
+load_dotenv()
+
+port = os.getenv('BACKEND_PORT')
+
+app = Flask(__name__, port = port)
 CORS(app)
 
 @app.route('/test_account', methods=['POST'])
