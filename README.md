@@ -12,7 +12,7 @@ To solve this, I created a website that generates a **sharable live link** to yo
 
 ![Progress Bar](https://progress-bars.entcheneric.com/bar?progress=65&color=%232563eb&backgroundColor=%23f3f4f6&height=20&width=400&borderRadius=10&striped=true&animated=true&animationSpeed=1&initialAnimationSpeed=1&colorGradient=linear-gradient%2890deg%2C+%23ec4899%2C+%23d946ef%2C+%23a855f7%29)  
 
-## ✅ Planned Features  
+### ✅ Planned Features  
 
 - [ ] Allow users to delete their account  
 - [ ] Enable customization of the account URL  
@@ -28,4 +28,5 @@ This website **stores passwords in the database**. While they are encrypted, the
 
 ---  
 
-💡 *Have feedback or feature requests? Feel free to contribute!*  
+💡 *Have feedback, feature requests, or questions?*  
+Please **open an Issue** or **write a Post in the Discussions** section!
