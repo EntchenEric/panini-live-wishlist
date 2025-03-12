@@ -8,6 +8,9 @@ Panini only allows wishlist sharing via email, and once sent, the list quickly b
 
 To solve this, I created a website that generates a **sharable live link** to your wishlist, ensuring it's always up to date!  
 
+## 🔍 See It in Action  
+Curious how the wishlist works? Check out **[my live wishlist here!](https://panini.entcheneric.com/Eric)**  
+
 ## 📊 Project Status  
 
 🎉Version 1.0 is 65% Complete!
