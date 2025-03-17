@@ -20,6 +20,8 @@ def get_wishlist(email: str):
     _, messages = mail.search(None, "ALL")
     email_ids = messages[0].split()
 
+    email_ids.reverse()
+
     for email_id in email_ids:
         _, msg_data = mail.fetch(email_id, "(RFC822)")
 
@@ -58,8 +60,6 @@ def get_wishlist(email: str):
                     message = full_message.replace(message_tag.get_text(strip=True), "").strip()
 
                     if email.lower() in message.lower():
-                        print(f"Found the email with desired content: {message}")
-
                         datas = []
                         for data in soup.find_all("td", class_="col product"):
                             title_tag = data.find_all("p")[1]

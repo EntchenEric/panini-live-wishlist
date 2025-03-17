@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
             });
 
             return new NextResponse(
-                JSON.stringify({ message: 'Wishlist successfully updated.', responseData }),
+                JSON.stringify({ message: 'Wishlist successfully updated.', responseData: responseData }),
                 { status: 200 }
             );
         } else {
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
             });
 
             return new NextResponse(
-                JSON.stringify({ message: 'Wishlist successfully created and fetched.', responseData }),
+                JSON.stringify({ message: 'Wishlist successfully created and fetched.', responseData:responseData }),
                 { status: 201 }
             );
         }

@@ -24,9 +24,6 @@ def login():
     email = decrypt_string(email)
     password = decrypt_string(password)
 
-    print(email)
-    print(password)
-
     if not email or not password:
         print("returing 400")
         return jsonify({"error": "Email and password are required"}), 400
@@ -82,14 +79,8 @@ def get_wishlist_complete_api():
     email = data.get('email')
     password = data.get('password')
 
-    print(email)
-    print(password)
-
     email = decrypt_string(email)
     password = decrypt_string(password)
-
-    print(email)
-    print(password)
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400

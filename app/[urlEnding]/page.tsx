@@ -4,13 +4,11 @@ import { useEffect, useState, use } from 'react';
 import { Item } from '@/components/item';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 
 export default function Page({ params }: { params: Promise<{ urlEnding: string }> }) {
   const [wishlistData, setWishlistData] = useState<Array<{ link: string, name: string, image: string }> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isUsingCached, setIsUsingCached] = useState(false);
 
   const resolvedParams = use(params);
   const { urlEnding } = resolvedParams;
@@ -28,11 +26,11 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
             parsedData = data.cash;
           }
           setWishlistData(parsedData.data);
-          setIsUsingCached(true);
           toast.info('The current wishlist is cached and might be outdated. Please wait a few seconds while the latest wishlist is fetched.', {
             position: "bottom-left",
             autoClose: 5000,
           });
+          fetchWishlist();
         } else {
           throw new Error('Cached wishlist not found');
         }
@@ -45,10 +43,14 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
     };
 
     const fetchWishlist = async () => {
+      console.log("Fetching new wishlist data...")
       try {
         const response = await fetch(`/api/get_wishlist?urlEnding=${urlEnding}`);
         const data = await response.json();
-        setWishlistData(data.result);
+        console.log("data: ", data)
+        const result = JSON.parse(data.responseData.result)
+        console.log("result: ", result);
+        setWishlistData(result.data);
       } catch (err: any) {
         setError(err.message);
       } finally {

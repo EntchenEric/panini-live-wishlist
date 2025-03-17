@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
-import { useRouter } from "next/navigation" // Import useRouter
+import { useRouter } from "next/navigation"
 
 const formSchema = z.object({
     email: z.string().min(2, "Your Email has to be at least 2 characters long.").max(50, "Your Email can't exeed 50 characters.").email("Please enter a valid Email."),
@@ -25,7 +25,7 @@ const formSchema = z.object({
 
 export function LoginForm() {
     const [errorMessage, setErrorMessage] = useState<string>("")
-    const router = useRouter() // Initialize useRouter
+    const router = useRouter()
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
