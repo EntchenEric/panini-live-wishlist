@@ -7,6 +7,10 @@ from flask_cors import CORS
 import json
 from dotenv import load_dotenv
 import os
+from get_comic_information import get_information
+import threading
+import time
+from functools import lru_cache
 
 load_dotenv()
 
@@ -14,6 +18,13 @@ port = os.getenv('BACKEND_PORT')
 
 app = Flask(__name__)
 CORS(app)
+
+comic_cache = {}
+comic_cache_lock = threading.Lock()
+
+@lru_cache(maxsize=100)
+def cached_get_information(url):
+    return get_information(url)
 
 @app.route('/test_account', methods=['POST'])
 def login():
@@ -92,6 +103,35 @@ def get_wishlist_complete_api():
     print("email send successfull.")
     result = get_wishlist(email)
     return jsonify({"message": "Got Wishlist successfull", "result": json.dumps(result)}), 200
+
+@app.route('/get_comic_information', methods=['POST'])
+def get_comic_information_api():
+    data = request.json
+    url = data.get('url')
+
+    if not url:
+        return jsonify({"error": "URL is required"}), 400
+
+    with comic_cache_lock:
+        if url in comic_cache:
+            cache_time, cache_data = comic_cache[url]
+            if time.time() - cache_time < 86400:
+                print(f"Returning cached data for URL: {url}")
+                return jsonify({"message": "Comic information fetched from cache", "result": cache_data}), 200
+
+    try:
+        result = cached_get_information(url)
+        
+        if isinstance(result, str) and "failed" in result:
+            return jsonify({"error": result}), 400
+        
+        with comic_cache_lock:
+            comic_cache[url] = (time.time(), result)
+            
+        return jsonify({"message": "Comic information fetched successfully", "result": result}), 200
+    except Exception as e:
+        print(f"Error fetching comic information: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=False, port = port)

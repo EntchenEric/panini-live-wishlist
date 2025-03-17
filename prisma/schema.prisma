@@ -23,3 +23,27 @@ model cashedWishlist {
   urlEnding   String   @unique
   cash        Bytes
 }
+
+model cashedComicData {
+  number String @unique
+  price String
+  author String
+  drawer String
+  release String
+  type String
+  pageAmount String
+  storys String
+  binding String
+  ISBN String
+  deliverableTo String
+  deliveryFrom String
+  articleNumber String? @default("")
+  format String? @default("")
+  color String? @default("")
+  lastUpdated DateTime @default(now())
+}
+
+model nameNumberMap {
+  name String
+  number String @unique
+}

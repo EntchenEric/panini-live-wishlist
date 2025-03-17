@@ -4,6 +4,7 @@ import { useEffect, useState, use } from 'react';
 import { Item } from '@/components/item';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'react-toastify';
+import { Loader2 } from 'lucide-react';
 
 export default function Page({ params }: { params: Promise<{ urlEnding: string }> }) {
   const [wishlistData, setWishlistData] = useState<Array<{ link: string, name: string, image: string }> | null>(null);
@@ -26,7 +27,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
             parsedData = data.cash;
           }
           setWishlistData(parsedData.data);
-          toast.info('The current wishlist is cached and might be outdated. Please wait a few seconds while the latest wishlist is fetched.', {
+          toast.info('Loading the latest wishlist data...', {
             position: "bottom-left",
             autoClose: 5000,
           });
@@ -37,8 +38,6 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
       } catch (err) {
         console.log('Cached data failed, falling back to regular wishlist.');
         fetchWishlist();
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -51,8 +50,16 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
         const result = JSON.parse(data.responseData.result)
         console.log("result: ", result);
         setWishlistData(result.data);
+        toast.success('Wishlist updated with the latest data', {
+          position: "bottom-left",
+          autoClose: 3000,
+        });
       } catch (err: any) {
         setError(err.message);
+        toast.error('Failed to fetch the latest wishlist data', {
+          position: "bottom-left",
+          autoClose: 5000,
+        });
       } finally {
         setLoading(false);
       }
@@ -61,21 +68,37 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
     fetchCashedWishlist();
   }, [urlEnding]);
 
-  if (loading) return <div className="text-center py-10 text-xl text-gray-700">Loading...</div>;
-  if (error) return <div className="text-center py-10 text-xl text-red-500">Error: {error}</div>;
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-950 px-6">
-      <Card className="w-full max-w-6xl shadow-xl border border-gray-800 rounded-3xl bg-gray-900 text-white p-8">
-        <CardHeader className="text-center">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-950 px-6 py-10">
+      <Card className="w-full max-w-7xl shadow-xl border border-gray-800 rounded-3xl bg-gray-900 text-white p-6 md:p-8">
+        <CardHeader className="text-center mb-6">
           <CardTitle className="text-4xl font-extrabold text-gray-100">
             Wishlist for <span className="text-indigo-600">{urlEnding}</span>
           </CardTitle>
         </CardHeader>
 
         <CardContent>
-          {wishlistData && wishlistData.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          {loading && !wishlistData ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="h-12 w-12 animate-spin text-indigo-500 mb-4" />
+              <p className="text-xl text-gray-400">Loading wishlist data...</p>
+            </div>
+          ) : error && !wishlistData ? (
+            <div className="text-center py-10">
+              <div className="text-xl text-red-500 mb-4">Error: {error}</div>
+              <button 
+                onClick={() => {
+                  setLoading(true);
+                  setError(null);
+                  window.location.reload();
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-white"
+              >
+                Retry
+              </button>
+            </div>
+          ) : wishlistData && wishlistData.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
               {wishlistData.map((item: { name: string; link: string; image: string }, index: number) => (
                 <Item key={index} name={item.name} url={item.link} image={item.image} />
               ))}
