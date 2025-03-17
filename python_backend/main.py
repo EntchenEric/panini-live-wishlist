@@ -105,33 +105,130 @@ def get_wishlist_complete_api():
     return jsonify({"message": "Got Wishlist successfull", "result": json.dumps(result)}), 200
 
 @app.route('/get_comic_information', methods=['POST'])
-def get_comic_information_api():
+def get_comic_information_route():
     data = request.json
     url = data.get('url')
 
     if not url:
         return jsonify({"error": "URL is required"}), 400
 
+    normalized_url = url.strip().lower()
+    if not normalized_url.startswith('http'):
+        normalized_url = 'https://' + normalized_url
+
     with comic_cache_lock:
-        if url in comic_cache:
-            cache_time, cache_data = comic_cache[url]
-            if time.time() - cache_time < 86400:
-                print(f"Returning cached data for URL: {url}")
+        if normalized_url in comic_cache:
+            cache_time, cache_data = comic_cache[normalized_url]
+            if time.time() - cache_time < 86400:  # 24 hours
+                print(f"Returning cached data for URL: {normalized_url}")
                 return jsonify({"message": "Comic information fetched from cache", "result": cache_data}), 200
+            else:
+                print(f"Cache expired for URL: {normalized_url}")
 
     try:
-        result = cached_get_information(url)
+        print(f"Fetching fresh data for URL: {normalized_url}")
+        result = get_information(normalized_url)
         
         if isinstance(result, str) and "failed" in result:
+            print(f"Fetch failed: {result}")
             return jsonify({"error": result}), 400
         
         with comic_cache_lock:
-            comic_cache[url] = (time.time(), result)
+            comic_cache[normalized_url] = (time.time(), result)
+            print(f"Stored new data in cache for URL: {normalized_url}")
             
         return jsonify({"message": "Comic information fetched successfully", "result": result}), 200
     except Exception as e:
         print(f"Error fetching comic information: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/get_comic_information_api', methods=['GET', 'POST'])
+def get_comic_information_api():
+    if request.method == 'POST':
+        data = request.json
+        url = data.get('url') if data else None
+    else:
+        url = request.args.get('url')
+        if url and '%' in url:
+            try:
+                import urllib.parse
+                url = urllib.parse.unquote(url)
+                print(f"Decoded URL parameter: {url}")
+            except Exception as e:
+                print(f"Error decoding URL: {e}")
+
+    if not url:
+        print("Error: No URL provided to get_comic_information_api")
+        return jsonify({"error": "URL is required"}), 400
+
+    print(f"Received request for URL: {url}")
+    
+    try:
+        normalized_url = url.strip().lower()
+        if not normalized_url.startswith('http'):
+            normalized_url = 'https://' + normalized_url
+            print(f"Normalized URL to: {normalized_url}")
+
+        with comic_cache_lock:
+            if normalized_url in comic_cache:
+                cache_time, cache_data = comic_cache[normalized_url]
+                if time.time() - cache_time < 86400:  
+                    print(f"Returning cached data for URL: {normalized_url}")
+                    return jsonify({"message": "Comic information fetched from cache", "result": cache_data}), 200
+                else:
+                    print(f"Cache expired for URL: {normalized_url}")
+
+        print(f"Fetching fresh data for URL: {normalized_url}")
+        result = get_information(normalized_url)
+        
+        if isinstance(result, str) and "failed" in result:
+            print(f"Fetch failed: {result}")
+            return jsonify({"error": result}), 400
+        
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except json.JSONDecodeError:
+                print(f"Result is not valid JSON: {result}")
+        
+        with comic_cache_lock:
+            comic_cache[normalized_url] = (time.time(), result)
+            print(f"Stored new data in cache for URL: {normalized_url}")
+            
+        return jsonify({"message": "Comic information fetched successfully", "result": result}), 200
+    except Exception as e:
+        error_message = str(e)
+        print(f"Error fetching comic information: {error_message}")
+        return jsonify({"error": error_message}), 500
+
+@app.route('/get_comic_information_api/<path:subpath>', methods=['GET', 'POST'])
+@app.route('/get_comic_information/<path:subpath>', methods=['GET', 'POST'])
+def get_comic_information_wildcard(subpath=None):
+    print(f"Wildcard comic information route hit with subpath: {subpath}")
+    if 'api' in request.path:
+        return get_comic_information_api()
+    else:
+        return get_comic_information_route()
+
 if __name__ == '__main__':
-    app.run(debug=False, port = port)
+    print("Available routes:")
+    for rule in app.url_map.iter_rules():
+        print(f"  {rule.endpoint}: {rule.methods} - {rule.rule}")
+    
+    @app.errorhandler(404)
+    def not_found(e):
+        if request.path.startswith('/get_comic_information'):
+            print(f"404 Error for comic information request: {request.path} - {request.query_string}")
+            url = request.args.get('url')
+            if url:
+                if request.method == 'GET':
+                    print(f"Redirecting to get_comic_information_api with URL: {url}")
+                    return get_comic_information_api()
+                else:
+                    print(f"Redirecting to get_comic_information_route with URL: {url}")
+                    return get_comic_information_route()
+            
+        print(f"404 Error: {request.path} - Method: {request.method}")
+        return jsonify({"error": f"Route not found: {request.path}"}), 404
+    
+    app.run(debug=False, port=port)

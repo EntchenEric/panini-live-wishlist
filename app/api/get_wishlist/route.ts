@@ -36,8 +36,6 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        console.log(existingAccount);
-
         const response = await fetch(backendUrl + "/get_wishlist_complete", {
             method: "POST",
             headers: {
@@ -49,8 +47,6 @@ export async function GET(req: NextRequest) {
             }),
         });
 
-        console.log(response);
-
         if (response.status !== 200) {
             return new NextResponse(
                 JSON.stringify({ message: "Email or Password are wrong." }),
@@ -59,8 +55,6 @@ export async function GET(req: NextRequest) {
         }
 
         const responseData = await response.json();
-
-        console.log("responseData", responseData)
 
         const cashString = JSON.stringify(responseData.result);
 

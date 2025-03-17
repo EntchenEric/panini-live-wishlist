@@ -48,20 +48,16 @@ export function LoginForm() {
             const data = await response.json()
 
             if (response.ok) {
-                // Redirect to the URL upon success
                 router.push(`/${urlEnding}`)
             } else {
-                // Set error message if the API returns an error
                 setErrorMessage(data.message || "Something went wrong.")
             }
         } catch (error) {
-            // Handle network errors
             setErrorMessage("An unexpected error occurred.")
         }
     }
 
     function onSubmit(values: z.infer<typeof formSchema>) {
-        console.log(values)
         createUser(values.email, values.password, values.urlEnding)
     }
 

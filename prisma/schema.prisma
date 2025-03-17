@@ -25,25 +25,26 @@ model cashedWishlist {
 }
 
 model cashedComicData {
-  number String @unique
-  price String
-  author String
-  drawer String
-  release String
-  type String
+  url        String @unique
+  price      String
+  author     String
+  drawer     String
+  release    String
+  type       String
   pageAmount String
-  storys String
-  binding String
-  ISBN String
+  storys     String @db.Text
+  binding    String
+  ISBN       String
   deliverableTo String
   deliveryFrom String
   articleNumber String? @default("")
-  format String? @default("")
-  color String? @default("")
+  format     String? @default("")
+  color      String? @default("")
+  name       String @default("Unknown Comic")
   lastUpdated DateTime @default(now())
 }
 
 model nameNumberMap {
-  name String
-  number String @unique
+  name    String
+  url     String @unique
 }

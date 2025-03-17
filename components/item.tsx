@@ -43,175 +43,14 @@ type ItemProps = {
   name: string;
   url: string;
   image: string;
+  comicData: ComicData;
 };
 
-export function Item({ name, url, image }: ItemProps) {
-  const [comicData, setComicData] = useState<ComicData | null>(null);
-  const [loading, setLoading] = useState(true);
+export function Item({ name, url, image, comicData }: ItemProps) {
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [displayName, setDisplayName] = useState(name);
-  const fetchedRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const getComicNumber = useCallback(() => {
-    try {
-      const urlObj = new URL(url);
-      const pathParts = urlObj.pathname.split('/');
-      const comicPart = pathParts.find(part => /^\d+/.test(part));
-      if (comicPart) {
-        return comicPart.split('-')[0];
-      }
-      
-      const lastPart = pathParts[pathParts.length - 1];
-      if (lastPart && lastPart.includes('-')) {
-        const parts = lastPart.split('-');
-        for (const part of parts) {
-          if (/^\d+$/.test(part)) {
-            return part;
-          }
-        }
-      }
-      
-      return null;
-    } catch (e) {
-      console.error("Error extracting comic number:", e);
-      return null;
-    }
-  }, [url]);
-
-  const fetchComicData = useCallback(async (force = false, isBackground = false) => {
-    // Cancel any ongoing fetch
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    // Don't fetch if already loading and not forcing
-    if (loading && !force) return;
-    
-    // Only show loading state if not a background fetch
-    if (!isBackground) {
-      setLoading(true);
-      setError(null);
-    }
-    
-    // Create a new abort controller for this fetch
-    abortControllerRef.current = new AbortController();
-    
-    try {
-      const comicNumber = getComicNumber();
-      let apiUrl = '/api/get_comic_data?';
-      
-      if (comicNumber) {
-        apiUrl += `number=${comicNumber}&`;
-      }
-      
-      apiUrl += `url=${encodeURIComponent(url)}`;
-      
-      // Add force_refresh parameter if force is true or it's a background fetch
-      if (force || isBackground) {
-        apiUrl += `&force_refresh=true`;
-      }
-      
-      console.log(`Fetching comic data from: ${apiUrl}${isBackground ? ' (background)' : ''}`);
-      const response = await fetch(apiUrl, {
-        signal: abortControllerRef.current.signal
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch comic data: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Received comic data:", data);
-      
-      if (data.data) {
-        const comicDataWithMeta = {
-          ...data.data,
-          fromCache: data.fromCache || false,
-          fallback: data.fallback || false
-        };
-        
-        // Add cache age if available
-        if (data.cacheAge) {
-          comicDataWithMeta.cacheAge = data.cacheAge;
-        }
-        
-        setComicData(comicDataWithMeta);
-        
-        console.log(
-          "Comic data set successfully", 
-          data.fromCache ? "(from cache)" : data.fallback ? "(fallback data)" : "(from backend)",
-          comicDataWithMeta
-        );
-
-        // If we got cached data and this wasn't a background fetch, trigger a background refresh
-        if (data.fromCache && !isBackground) {
-          console.log("Got cached data, triggering background refresh");
-          setTimeout(() => fetchComicData(true, true), 100);
-        }
-      } else {
-        throw new Error("Invalid data format received");
-      }
-      
-      setRetryCount(0);
-    } catch (err) {
-      // Only set error if not aborted and not a background fetch
-      if (!(err instanceof DOMException && err.name === 'AbortError')) {
-        console.error("Error fetching comic data:", err);
-        if (!isBackground) {
-          setError(err instanceof Error ? err.message : String(err));
-          
-          if (retryCount < 2) {
-            setRetryCount(prev => prev + 1);
-            setTimeout(() => {
-              if (!comicData) {
-                fetchComicData(true);
-              }
-            }, 3000);
-          }
-        }
-      }
-    } finally {
-      // Always update loading state
-      setLoading(false);
-      abortControllerRef.current = null;
-    }
-  }, [url, getComicNumber, retryCount, comicData, loading]);
-
-  // Cleanup function to abort any ongoing fetch when component unmounts
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      fetchComicData(true);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!fetchedRef.current) {
-      fetchedRef.current = true;
-      console.log("Initial fetch for comic data:", name);
-      // Force the initial fetch to ensure we get data
-      fetchComicData(true);
-    }
-  }, [fetchComicData, name]);
-
-  // Set up periodic background refresh
-  useEffect(() => {
-    const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
-    
-    const refreshInterval = setInterval(() => {
-      if (comicData && !loading) {
-        console.log("Performing periodic background refresh");
-        fetchComicData(true, true);
-      }
-    }, REFRESH_INTERVAL);
-
-    return () => clearInterval(refreshInterval);
-  }, [fetchComicData, comicData, loading]);
 
   return (
     <div className="relative">
@@ -220,7 +59,7 @@ export function Item({ name, url, image }: ItemProps) {
           <CardHeader className="w-full h-2/5 p-0">
           <img
             src={image}
-              alt={displayName}
+              alt={comicData.name}
             className="w-full h-full object-cover rounded-t-lg transition-transform group-hover:scale-105"
           />
         </CardHeader>
@@ -233,7 +72,7 @@ export function Item({ name, url, image }: ItemProps) {
                         text-[clamp(1rem, 5vw, 1.25rem)] 
                         line-clamp-2 
                           h-[4rem]">
-              {displayName}
+              {comicData.name}
           </h3>
           </a>
           
@@ -250,7 +89,6 @@ export function Item({ name, url, image }: ItemProps) {
                     <Badge 
                       variant="destructive" 
                       className="bg-red-700 hover:bg-red-600 text-xs cursor-pointer"
-                      onClick={() => fetchComicData(true)}
                     >
                       <RefreshCw className="h-3 w-3 mr-1" /> Erneut versuchen, Daten zu laden
                     </Badge>
@@ -264,7 +102,7 @@ export function Item({ name, url, image }: ItemProps) {
           ) : comicData ? (
             <div className="mt-2 space-y-2 text-sm">
               <div className="flex items-center justify-between">
-                <Badge variant="secondary" className={`${comicData.fallback ? 'bg-gray-700' : 'bg-indigo-700 hover:bg-indigo-600'} text-white`}>
+                <Badge variant="default">
                   {comicData.price}
                 </Badge>
                 {comicData.type && (
@@ -303,16 +141,12 @@ export function Item({ name, url, image }: ItemProps) {
                         <Badge 
                           variant="outline" 
                           className="bg-yellow-900/30 text-yellow-400 border-yellow-700 text-xs cursor-help"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fetchComicData(true);
-                          }}
                         >
                           <RefreshCw className="h-3 w-3 mr-1" /> Zwischengespeicherte Daten
                         </Badge>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>{comicData.cacheAge ? `Daten sind ${comicData.cacheAge} alt. Klicken Sie, um zu aktualisieren.` : 'Verwenden von zwischengespeicherten Daten. Klicken Sie, um zu aktualisieren.'}</p>
+                        <p>{comicData.cacheAge ? `Daten sind ${comicData.cacheAge} alt.` : 'Verwenden von zwischengespeicherten Daten.'}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -351,9 +185,6 @@ export function Item({ name, url, image }: ItemProps) {
                 className="bg-gray-700 hover:bg-gray-600 border-none text-gray-200"
                 onClick={() => {
                   setDialogOpen(true);
-                  if (error || !comicData) {
-                    fetchComicData(true);
-                  }
                 }}
               >
                 {loading ? (
@@ -366,7 +197,7 @@ export function Item({ name, url, image }: ItemProps) {
             </DialogTrigger>
             <DialogContent className="bg-gray-800 text-white border-gray-700">
               <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-gray-100">{displayName}</DialogTitle>
+                <DialogTitle className="text-xl font-bold text-gray-100">{comicData.name}</DialogTitle>
                 <DialogDescription className="text-gray-300">
                   Comic-Details und Informationen
                 </DialogDescription>
@@ -380,13 +211,6 @@ export function Item({ name, url, image }: ItemProps) {
               ) : error ? (
                 <div className="text-red-400 py-4">
                   <p className="mb-2">Fehler beim Laden der Comic-Daten: {error}</p>
-                  <Button 
-                    variant="outline" 
-                    className="mt-2 w-full"
-                    onClick={() => fetchComicData(true)}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen
-                  </Button>
                 </div>
               ) : comicData ? (
                 <div className="space-y-4 py-2">
@@ -400,14 +224,6 @@ export function Item({ name, url, image }: ItemProps) {
                             Wir konnten keine vollständigen Informationen für diesen Comic abrufen. 
                             Einige Details sind möglicherweise nicht verfügbar oder unvollständig.
                           </p>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="mt-2 bg-orange-900/30 hover:bg-orange-800/40 border-orange-800"
-                            onClick={() => fetchComicData(true)}
-                          >
-                            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Erneut versuchen
-                          </Button>
                         </div>
                       </div>
                     </div>
@@ -518,27 +334,11 @@ export function Item({ name, url, image }: ItemProps) {
                         Live-Daten
                       </Badge>
                     )}
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="ml-auto bg-gray-700 hover:bg-gray-600 border-gray-600"
-                      onClick={() => fetchComicData(true)}
-                    >
-                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Aktualisieren
-                    </Button>
                   </div>
                 </div>
               ) : (
                 <div className="py-4 text-center">
                   <p className="text-gray-400 mb-4">Keine Comic-Informationen verfügbar</p>
-                  <Button 
-                    variant="default" 
-                    className="bg-indigo-600 hover:bg-indigo-700"
-                    onClick={() => fetchComicData(true)}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" /> Comic-Informationen laden
-                  </Button>
                 </div>
               )}
             </DialogContent>
