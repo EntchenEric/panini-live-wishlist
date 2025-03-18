@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 📚 Panini Live Wishlist  
 
 Easily create and share a **live-updating** wishlist for your Panini comics!  
@@ -32,31 +31,5 @@ This website **stores passwords in the database**. While they are encrypted, the
 
 ⚠️ **Important:** Although I will never access or misuse your data, remember that I'm just a stranger on the internet. Please use unique passwords and practice good security habits.  
 
----  
-
 💡 *Have feedback, feature requests, or questions?*  
 Please **open an Issue** or **write a Post in the Discussions** section!
-=======
-# Panini live wishlist
-Create a Sharable Link for your paninin Wishlist
-
-## why?
-Trough Panini you can only Share your wishlist via Email and then its not updated live. So if I buy a comic the wishlist I send to someone gets outdated.
-Because I wanted to have a Link I can share I created this website.
-
-## Project Status
-
-![Progress Bar](https://progress-bars.entcheneric.com/bar?progress=65&color=%232563eb&backgroundColor=%23f3f4f6&height=20&width=200&borderRadius=10&striped=true&animated=true&animationSpeed=1&initialAnimationSpeed=1&colorGradient=linear-gradient%2890deg%2C+%23ec4899%2C+%23d946ef%2C+%23a855f7%29)
-
-## ToDo
-
-[] Ability to Delete saved Account
-[] Ability to change the URL Ending of your account
-[] Ability to change Password of your account
-[] Ability to set priorities to the Wishlist Items
-[] Ability to set requirements to Wishlist Items (e.g. If a Comic is a predecessor of another Comic, the second Comit should have a Note that it should only be bought together with the other one)
-
-## Secruity Notice
-
-This Website stores your Password in the Database. The Password is encrypted, however not hashed. I will obviously never read your password or abuse your data in any way, however I am just a Stranger on the Internet.
->>>>>>> e58f15b (Fix wishlist updating not working)
