@@ -189,7 +189,7 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
 
   return (
     <div className="relative">
-      <Card className={`group w-full max-w-xs min-h-[24rem] rounded-lg overflow-hidden bg-gray-800 shadow-md transition-transform transform hover:scale-105 hover:shadow-2xl ${getPriorityStyle()}`}>
+      <Card className={`group w-full max-w-xs min-h-[24rem] rounded-lg overflow-hidden bg-gray-800 shadow-md transition-transform transform hover:scale-105 hover:shadow-2xl ${getPriorityStyle()} pt-0`}>
         {comicData.priority && (
           <div className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
             style={{
@@ -225,7 +225,7 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
           <img
             src={image}
               alt={comicData.name}
-            className="w-full h-full object-cover rounded-t-lg transition-transform group-hover:scale-105"
+            className="w-full h-full object-cover rounded-t-lg transition-transform"
           />
         </CardHeader>
         </a>
