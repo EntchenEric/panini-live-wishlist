@@ -56,3 +56,11 @@ model prioritys {
   
   @@unique([urlEnding, url], name: "urlEnding_url")
 }
+
+model note {
+  urlEnding String
+  url      String
+  note     String
+
+  @@unique([urlEnding, url], name: "urlEnding_url")
+}

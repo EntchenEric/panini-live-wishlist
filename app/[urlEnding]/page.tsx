@@ -4,7 +4,7 @@ import { useEffect, useState, use } from 'react';
 import { Item } from '@/components/item';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'react-toastify';
-import { Loader2, ChevronDown, Filter, XCircle, SlidersHorizontal, Check, ArrowUpDown, Star } from 'lucide-react';
+import { Loader2, ChevronDown, Filter, XCircle, SlidersHorizontal, Star, StickyNote } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +47,7 @@ type ComicData = {
   fromCache?: boolean;
   fallback?: boolean;
   priority?: number;
+  hasNote?: boolean;
 };
 
 type EnhancedWishlistItem = {
@@ -81,6 +82,9 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [priorities, setPriorities] = useState<Record<string, number>>({});
   const [hasPriorityItems, setHasPriorityItems] = useState(false);
+  const [notes, setNotes] = useState<Record<string, boolean>>({});
+  const [hasNotes, setHasNotes] = useState(false);
+  const [showOnlyWithNotes, setShowOnlyWithNotes] = useState(false);
 
   const [lastReloadTime, setLastReloadTime] = useState<number>(Date.now());
 
@@ -89,7 +93,10 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
 
   useEffect(() => {
     fetchPriorities();
-  }, [urlEnding, sortField, lastReloadTime]);
+    if (isLoggedIn) {
+      fetchNotes();
+    }
+  }, [urlEnding, sortField, lastReloadTime, isLoggedIn]);
 
   const fetchPriorities = async () => {
     try {
@@ -116,6 +123,31 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
       }
     } catch (error) {
       console.error('Error fetching priorities:', error);
+    }
+  };
+
+  const fetchNotes = async () => {
+    try {
+      if (!isLoggedIn) return;
+      
+      const response = await fetch(`/api/get_all_notes?urlEnding=${urlEnding}`);
+      if (response.ok) {
+        const data = await response.json();
+        const noteMap: Record<string, boolean> = {};
+        let hasAnyNotes = false;
+        
+        if (data.notes && Array.isArray(data.notes)) {
+          data.notes.forEach((item: { url: string; note: string }) => {
+            noteMap[item.url] = true;
+            hasAnyNotes = true;
+          });
+        }
+        
+        setNotes(noteMap);
+        setHasNotes(hasAnyNotes);
+      }
+    } catch (error) {
+      console.error('Error fetching notes:', error);
     }
   };
 
@@ -187,11 +219,27 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
     };
   }, [urlEnding, isLoggedIn]);
 
+  useEffect(() => {
+    const handleNoteUpdate = () => {
+      fetchNotes();
+    };
+    
+    window.addEventListener('notesUpdated', handleNoteUpdate);
+    
+    return () => {
+      window.removeEventListener('notesUpdated', handleNoteUpdate);
+    };
+  }, [isLoggedIn]);
+
   const getValueByField = (item: EnhancedWishlistItem, field: string): any => {
     if (field === 'name') return item.name;
     
     if (field === 'priority') {
       return priorities[item.link] || 999;
+    }
+    
+    if (field === 'hasNote') {
+      return notes[item.link] || false;
     }
     
     if (field.startsWith('comicData.')) {
@@ -213,6 +261,10 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
   const filteredAndSortedData = wishlistData 
     ? [...wishlistData]
         .filter(item => {
+          if (showOnlyWithNotes && !notes[item.link]) {
+            return false;
+          }
+          
           if (filters.length === 0) return true;
           
           return filters.every(filter => {
@@ -245,16 +297,23 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
           });
         })
         .map(item => {
+          const enrichedItem = { ...item };
+          
           if (priorities[item.link]) {
-            return {
-              ...item,
-              comicData: {
-                ...item.comicData,
-                priority: priorities[item.link]
-              }
+            enrichedItem.comicData = {
+              ...enrichedItem.comicData,
+              priority: priorities[item.link]
             };
           }
-          return item;
+          
+          if (notes[item.link]) {
+            enrichedItem.comicData = {
+              ...enrichedItem.comicData,
+              hasNote: true
+            };
+          }
+          
+          return enrichedItem;
         })
         .sort((a, b) => {
           let valueA, valueB;
@@ -271,6 +330,13 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
           } else if (sortField === 'priority') {
             valueA = priorities[a.link] || 999;
             valueB = priorities[b.link] || 999;
+            
+            return sortDirection === 'asc' 
+              ? valueA - valueB 
+              : valueB - valueA;
+          } else if (sortField === 'hasNote') {
+            valueA = notes[a.link] ? 1 : 0;
+            valueB = notes[b.link] ? 1 : 0;
             
             return sortDirection === 'asc' 
               ? valueA - valueB 
@@ -665,11 +731,36 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                         Binding {sortField === 'binding' && 
                                 <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                       </DropdownMenuItem>
+
+                      {hasNotes && (
+                        <DropdownMenuItem 
+                          className={`${sortField === 'hasNote' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                          onClick={() => handleSortChange('hasNote')}
+                        >
+                          <StickyNote className="h-4 w-4 mr-2" />
+                          Notizen {sortField === 'hasNote' && 
+                                   <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
                 
                 <div className="flex flex-wrap gap-2 items-center">
+                  {isLoggedIn && hasNotes && (
+                    <Button 
+                      variant={showOnlyWithNotes ? "default" : "outline"}
+                      className={showOnlyWithNotes 
+                        ? "bg-indigo-600 hover:bg-indigo-700 text-white" 
+                        : "bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700"
+                      }
+                      onClick={() => setShowOnlyWithNotes(!showOnlyWithNotes)}
+                    >
+                      <StickyNote className="h-4 w-4 mr-2" />
+                      {showOnlyWithNotes ? "Alle anzeigen" : "Nur mit Notizen"}
+                    </Button>
+                  )}
+                  
                   <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
                     <DialogTrigger asChild>
                       <Button variant="outline" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none">
@@ -705,6 +796,9 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                             <option value="comicData.pageAmount">Page Count</option>
                             <option value="comicData.binding">Binding</option>
                             <option value="comicData.ISBN">ISBN</option>
+                            {hasNotes && (
+                              <option value="hasNote">Notizen</option>
+                            )}
                           </select>
                         </div>
                         
@@ -802,6 +896,19 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                       onPriorityChange={handlePriorityChange}
                     />
                   ))}
+                </div>
+              ) : showOnlyWithNotes ? (
+                <div className="text-center py-10 text-xl text-gray-500">
+                  Keine Comics mit Notizen gefunden
+                  <div className="mt-4">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowOnlyWithNotes(false)}
+                      className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700"
+                    >
+                      Alle anzeigen
+                    </Button>
+                  </div>
                 </div>
               ) : filters.length > 0 ? (
                 <div className="text-center py-10 text-xl text-gray-500">

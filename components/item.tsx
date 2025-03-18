@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Info, RefreshCw, Calendar, Book, User, Layers, AlertTriangle, Hash, Palette, Ruler } from 'lucide-react';
+import { Loader2, Info, RefreshCw, Calendar, Book, User, Layers, AlertTriangle, Hash, Palette, Ruler, Pencil, Save, StickyNote } from 'lucide-react';
 import { 
   Tooltip,
   TooltipContent,
@@ -55,6 +55,119 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [note, setNote] = useState<string>('');
+  const [originalNote, setOriginalNote] = useState<string>('');
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [hasNote, setHasNote] = useState(false);
+  const [notePreview, setNotePreview] = useState<string>('');
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      checkNoteExistsAndGetPreview();
+      
+      if (dialogOpen) {
+        fetchNote();
+      }
+    }
+  }, [dialogOpen, isLoggedIn]);
+
+  const checkNoteExistsAndGetPreview = async () => {
+    try {
+      const response = await fetch(`/api/get_note?urlEnding=${urlEnding}&url=${encodeURIComponent(url)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const hasNoteContent = !!data.note;
+        setHasNote(hasNoteContent);
+        
+        if (hasNoteContent) {
+          const fullNote = data.note;
+          const preview = fullNote.length > 60 
+            ? fullNote.substring(0, 60) + '...' 
+            : fullNote;
+          setNotePreview(preview);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking if note exists:', error);
+    }
+  };
+
+  const fetchNote = async () => {
+    try {
+      const response = await fetch(`/api/get_note?urlEnding=${urlEnding}&url=${encodeURIComponent(url)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const noteContent = data.note || '';
+        setNote(noteContent);
+        setOriginalNote(noteContent);
+        setHasNote(!!noteContent);
+        
+        if (noteContent) {
+          const preview = noteContent.length > 60 
+            ? noteContent.substring(0, 60) + '...' 
+            : noteContent;
+          setNotePreview(preview);
+        }
+      } else {
+        console.error('Error fetching note:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error fetching note:', error);
+    }
+  };
+
+  const saveNote = async () => {
+    if (!isLoggedIn) return;
+    
+    setIsSavingNote(true);
+    setNoteError(null);
+    
+    try {
+      const response = await fetch('/api/save_note', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          urlEnding,
+          url,
+          note
+        }),
+      });
+      
+      if (response.ok) {
+        setOriginalNote(note);
+        setIsEditingNote(false);
+        setHasNote(!!note);
+        
+        if (note) {
+          const preview = note.length > 60 
+            ? note.substring(0, 60) + '...' 
+            : note;
+          setNotePreview(preview);
+        } else {
+          setNotePreview('');
+        }
+        
+        window.dispatchEvent(new CustomEvent('notesUpdated'));
+      } else {
+        const errorText = await response.text();
+        setNoteError('Failed to save note: ' + errorText);
+      }
+    } catch (error) {
+      setNoteError('Error saving note: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNote(e.target.value);
+  };
+
+  const hasNoteChanges = note !== originalNote;
 
   const handlePriorityChange = (priority: number) => {
     if (onPriorityChange) {
@@ -89,6 +202,24 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
             {comicData.priority}
           </div>
         )}
+        
+        {isLoggedIn && hasNote && (
+          <div className="absolute top-2 left-2 z-10">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center shadow-md">
+                    <StickyNote className="h-4 w-4 text-white" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Hat Notizen</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
+        
         <a href={url} target="_blank" rel="noopener noreferrer" className="block">
           <CardHeader className="w-full h-2/5 p-0">
           <img
@@ -175,6 +306,37 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
                   isLoggedIn={isLoggedIn}
                   onPriorityChange={handlePriorityChange}
                 />
+                
+                {isLoggedIn && (
+                  hasNote && notePreview ? (
+                    <div 
+                      className="w-full mt-2 p-2 bg-indigo-900/30 rounded-md border border-indigo-800/50 text-gray-300 text-xs cursor-pointer hover:bg-indigo-900/50"
+                      onClick={() => setDialogOpen(true)}
+                    >
+                      <div className="flex items-start gap-1.5">
+                        <StickyNote className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                        <p className="line-clamp-2 whitespace-pre-wrap">{notePreview}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="w-full mt-2 flex justify-center"
+                      onClick={() => {
+                        setDialogOpen(true);
+                        setIsEditingNote(true);
+                      }}
+                    >
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="bg-gray-700 hover:bg-indigo-800 border-none text-gray-300 text-xs py-1 h-7"
+                      >
+                        <StickyNote className="h-3 w-3 mr-1.5" />
+                        Notiz hinzufügen
+                      </Button>
+                    </div>
+                  )
+                )}
                 
                 {comicData.fromCache && (
                   <TooltipProvider>
@@ -361,6 +523,80 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium text-gray-400">Versand von</h4>
                       <p>{comicData.deliveryFrom}</p>
+                    </div>
+                  )}
+                  
+                  {isLoggedIn && (
+                    <div className="space-y-2 mt-4 border-t border-gray-700 pt-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-gray-400 flex items-center">
+                          <StickyNote className="h-4 w-4 mr-1.5 text-indigo-400" />
+                          Notizen
+                        </h4>
+                        {!isEditingNote ? (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setIsEditingNote(true)}
+                            className="h-7 text-indigo-400 hover:text-indigo-300 hover:bg-gray-700"
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1" />
+                            Bearbeiten
+                          </Button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                setNote(originalNote);
+                                setIsEditingNote(false);
+                              }}
+                              className="h-7 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
+                              disabled={isSavingNote}
+                            >
+                              Abbrechen
+                            </Button>
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                              onClick={saveNote}
+                              className="h-7 bg-indigo-600 hover:bg-indigo-500 text-white"
+                              disabled={isSavingNote || !hasNoteChanges}
+                            >
+                              {isSavingNote ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                              ) : (
+                                <Save className="h-3.5 w-3.5 mr-1" />
+                              )}
+                              Speichern
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {isEditingNote ? (
+                        <div>
+                          <textarea
+                            value={note}
+                            onChange={handleNoteChange}
+                            className="w-full rounded-md bg-gray-900 border border-gray-700 text-gray-200 p-2 min-h-[100px]"
+                            placeholder="Fügen Sie hier Ihre Notizen hinzu..."
+                            disabled={isSavingNote}
+                          />
+                          {noteError && (
+                            <p className="text-xs text-red-400 mt-1">{noteError}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-gray-900 rounded-md p-3 min-h-[60px]">
+                          {note ? (
+                            <p className="text-gray-300 whitespace-pre-wrap">{note}</p>
+                          ) : (
+                            <p className="text-gray-500 italic text-sm">Keine Notizen vorhanden. Klicken Sie auf "Bearbeiten", um Notizen hinzuzufügen.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                   
