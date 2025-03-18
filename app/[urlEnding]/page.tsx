@@ -96,7 +96,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
     if (isLoggedIn) {
       fetchNotes();
     }
-  }, [urlEnding, sortField, lastReloadTime, isLoggedIn]);
+  }, [urlEnding, lastReloadTime, isLoggedIn]);
 
   const fetchPriorities = async () => {
     try {
@@ -116,7 +116,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
         setPriorities(priorityMap);
         setHasPriorityItems(hasItems);
         
-        if (hasItems && sortField !== 'priority') {
+        if (hasItems && !priorities || Object.keys(priorities).length === 0) {
           setSortField('priority');
           setSortDirection('asc');
         }
@@ -159,8 +159,10 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
     const handleFirstPriorityAdded = () => {
       fetchPriorities();
       setHasPriorityItems(true);
-      setSortField('priority');
-      setSortDirection('asc');
+      if (sortField === 'name') {
+        setSortField('priority');
+        setSortDirection('asc');
+      }
     };
 
     const handleStorageChange = (event: StorageEvent) => {
@@ -178,7 +180,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
       window.removeEventListener('firstPriorityAdded', handleFirstPriorityAdded);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [sortField]);
 
   useEffect(() => {
     const checkLoginStatus = () => {
@@ -662,85 +664,85 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                       
                       {hasPriorityItems && (
                         <>
-                          <DropdownMenuItem 
-                            className={`${sortField === 'priority' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                          <button 
+                            className={`w-full text-left px-2 py-2 ${sortField === 'priority' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                             onClick={() => handleSortChange('priority')}
                           >
                             <Star className="h-4 w-4 mr-2" /> 
                             Priority {sortField === 'priority' && 
                                   <span className="ml-auto">{sortDirection === 'asc' ? '(1→10)' : '(10→1)'}</span>}
-                          </DropdownMenuItem>
+                          </button>
                           <div className="px-2 py-1 text-xs text-gray-400 border-t border-gray-700 mt-1">
                             Priority scale: 1 (Highest) to 10 (Lowest)
                           </div>
                         </>
                       )}
                       
-                      <DropdownMenuItem 
-                        className={`${sortField === 'name' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                      <button 
+                        className={`w-full text-left px-2 py-2 ${sortField === 'name' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('name')}
                       >
                         Name {sortField === 'name' && 
                               <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-                      </DropdownMenuItem>
+                      </button>
                       
-                      <DropdownMenuItem 
-                        className={`${sortField === 'price' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                      <button 
+                        className={`w-full text-left px-2 py-2 ${sortField === 'price' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('price')}
                       >
                         Price {sortField === 'price' && 
                                <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-                      </DropdownMenuItem>
+                      </button>
                       
-                      <DropdownMenuItem 
-                        className={`${sortField === 'release' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                      <button 
+                        className={`w-full text-left px-2 py-2 ${sortField === 'release' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('release')}
                       >
                         Release Date {sortField === 'release' && 
                                      <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-                      </DropdownMenuItem>
+                      </button>
                       
-                      <DropdownMenuItem 
-                        className={`${sortField === 'author' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                      <button 
+                        className={`w-full text-left px-2 py-2 ${sortField === 'author' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('author')}
                       >
                         Author {sortField === 'author' && 
                                 <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-                      </DropdownMenuItem>
+                      </button>
                       
-                      <DropdownMenuItem 
-                        className={`${sortField === 'type' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                      <button 
+                        className={`w-full text-left px-2 py-2 ${sortField === 'type' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('type')}
                       >
                         Type {sortField === 'type' && 
                               <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-                      </DropdownMenuItem>
+                      </button>
                       
-                      <DropdownMenuItem 
-                        className={`${sortField === 'pageAmount' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                      <button 
+                        className={`w-full text-left px-2 py-2 ${sortField === 'pageAmount' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('pageAmount')}
                       >
                         Page Count {sortField === 'pageAmount' && 
                                    <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-                      </DropdownMenuItem>
+                      </button>
 
-                      <DropdownMenuItem 
-                        className={`${sortField === 'binding' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                      <button 
+                        className={`w-full text-left px-2 py-2 ${sortField === 'binding' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('binding')}
                       >
                         Binding {sortField === 'binding' && 
                                 <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-                      </DropdownMenuItem>
+                      </button>
 
                       {hasNotes && (
-                        <DropdownMenuItem 
-                          className={`${sortField === 'hasNote' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                        <button 
+                          className={`w-full text-left px-2 py-2 ${sortField === 'hasNote' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                           onClick={() => handleSortChange('hasNote')}
                         >
                           <StickyNote className="h-4 w-4 mr-2" />
-                          Notizen {sortField === 'hasNote' && 
+                          Notes {sortField === 'hasNote' && 
                                    <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-                        </DropdownMenuItem>
+                        </button>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -757,7 +759,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                       onClick={() => setShowOnlyWithNotes(!showOnlyWithNotes)}
                     >
                       <StickyNote className="h-4 w-4 mr-2" />
-                      {showOnlyWithNotes ? "Alle anzeigen" : "Nur mit Notizen"}
+                      {showOnlyWithNotes ? "Show all" : "Only with notes"}
                     </Button>
                   )}
                   
@@ -797,7 +799,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                             <option value="comicData.binding">Binding</option>
                             <option value="comicData.ISBN">ISBN</option>
                             {hasNotes && (
-                              <option value="hasNote">Notizen</option>
+                              <option value="hasNote">Notes</option>
                             )}
                           </select>
                         </div>
@@ -899,14 +901,14 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                 </div>
               ) : showOnlyWithNotes ? (
                 <div className="text-center py-10 text-xl text-gray-500">
-                  Keine Comics mit Notizen gefunden
+                  No comics with notes found
                   <div className="mt-4">
                     <Button 
                       variant="outline" 
                       onClick={() => setShowOnlyWithNotes(false)}
                       className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700"
                     >
-                      Alle anzeigen
+                      Show All
                     </Button>
                   </div>
                 </div>
