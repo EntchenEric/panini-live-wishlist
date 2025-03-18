@@ -22,7 +22,7 @@ Curious how the wishlist works? Check out **[my live wishlist here!](https://pan
 - [ ] Allow users to delete their account  
 - [ ] Enable customization of the account URL  
 - [ ] Add an option to change account passwords  
-- [ ] Introduce priority settings for wishlist items  
+- [x] Introduce priority settings for wishlist items  
 - [ ] Implement dependency notes for wishlist items (e.g., if a comic is a **prequel** to another, the second comic should include a note recommending they be bought together)  
 
 ## 🔒 Security Notice  
