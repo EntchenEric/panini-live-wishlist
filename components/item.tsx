@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { PrioritySelector } from './PrioritySelector';
 
 type ComicData = {
   price: string;
@@ -37,6 +38,7 @@ type ComicData = {
   format?: string;
   color?: string;
   cacheAge?: string;
+  priority?: number;
 };
 
 type ItemProps = {
@@ -44,17 +46,49 @@ type ItemProps = {
   url: string;
   image: string;
   comicData: ComicData;
+  isLoggedIn?: boolean;
+  urlEnding: string;
+  onPriorityChange?: (url: string, priority: number) => void;
 };
 
-export function Item({ name, url, image, comicData }: ItemProps) {
+export function Item({ name, url, image, comicData, isLoggedIn = false, urlEnding, onPriorityChange }: ItemProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const handlePriorityChange = (priority: number) => {
+    if (onPriorityChange) {
+      onPriorityChange(url, priority);
+    }
+  };
+
+  const getPriorityStyle = () => {
+    if (!comicData.priority) return "";
+    
+    if (comicData.priority <= 3) {
+      return "ring-2 ring-green-500/30 shadow-lg shadow-green-900/20 bg-gradient-to-b from-gray-800 to-green-950/30";
+    } else if (comicData.priority <= 6) {
+      return "ring-2 ring-yellow-500/30 shadow-lg shadow-yellow-900/20 bg-gradient-to-b from-gray-800 to-yellow-950/30";
+    } else {
+      return "ring-2 ring-red-500/30 shadow-lg shadow-red-900/20 bg-gradient-to-b from-gray-800 to-red-950/30";
+    }
+  };
 
   return (
     <div className="relative">
-      <Card className="group w-full max-w-xs min-h-[24rem] rounded-lg overflow-hidden bg-gray-800 shadow-md transition-transform transform hover:scale-105 hover:shadow-2xl">
+      <Card className={`group w-full max-w-xs min-h-[24rem] rounded-lg overflow-hidden bg-gray-800 shadow-md transition-transform transform hover:scale-105 hover:shadow-2xl ${getPriorityStyle()}`}>
+        {comicData.priority && (
+          <div className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+            style={{
+              backgroundColor: comicData.priority <= 3 ? '#065f46' : 
+                              comicData.priority <= 6 ? '#854d0e' : '#7f1d1d',
+              color: 'white',
+              boxShadow: '0 0 8px rgba(0,0,0,0.5)',
+            }}
+          >
+            {comicData.priority}
+          </div>
+        )}
         <a href={url} target="_blank" rel="noopener noreferrer" className="block">
           <CardHeader className="w-full h-2/5 p-0">
           <img
@@ -133,7 +167,15 @@ export function Item({ name, url, image, comicData }: ItemProps) {
                 </div>
               )}
               
-              <div className="flex justify-center mt-1 gap-2">
+              <div className="flex items-center justify-center mt-1 gap-2 flex-wrap">
+                <PrioritySelector 
+                  url={url}
+                  urlEnding={urlEnding}
+                  initialPriority={comicData.priority}
+                  isLoggedIn={isLoggedIn}
+                  onPriorityChange={handlePriorityChange}
+                />
+                
                 {comicData.fromCache && (
                   <TooltipProvider>
                     <Tooltip>

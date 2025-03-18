@@ -4,7 +4,7 @@ import { useEffect, useState, use } from 'react';
 import { Item } from '@/components/item';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'react-toastify';
-import { Loader2, ChevronDown, Filter, XCircle, SlidersHorizontal, Check, ArrowUpDown } from 'lucide-react';
+import { Loader2, ChevronDown, Filter, XCircle, SlidersHorizontal, Check, ArrowUpDown, Star } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,14 +12,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuCheckboxItem,
-  DropdownMenuGroup,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuPortal,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { LoginButton } from '@/components/loginButton';
 
 type ComicData = {
   price: string;
@@ -53,6 +46,7 @@ type ComicData = {
   name: string;
   fromCache?: boolean;
   fallback?: boolean;
+  priority?: number;
 };
 
 type EnhancedWishlistItem = {
@@ -83,12 +77,122 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
     operator: 'contains',
     value: ''
   });
+  
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [priorities, setPriorities] = useState<Record<string, number>>({});
+  const [hasPriorityItems, setHasPriorityItems] = useState(false);
+
+  const [lastReloadTime, setLastReloadTime] = useState<number>(Date.now());
 
   const resolvedParams = use(params);
   const { urlEnding } = resolvedParams;
 
+  useEffect(() => {
+    fetchPriorities();
+  }, [urlEnding, sortField, lastReloadTime]);
+
+  const fetchPriorities = async () => {
+    try {
+      const response = await fetch(`/api/get_priorities?urlEnding=${urlEnding}`);
+      if (response.ok) {
+        const data = await response.json();
+        const priorityMap: Record<string, number> = {};
+        let hasItems = false;
+        
+        if (data.priorities && Array.isArray(data.priorities)) {
+          data.priorities.forEach((item: { url: string; priority: number }) => {
+            priorityMap[item.url] = item.priority;
+            hasItems = true;
+          });
+        }
+        
+        setPriorities(priorityMap);
+        setHasPriorityItems(hasItems);
+        
+        if (hasItems && sortField !== 'priority') {
+          setSortField('priority');
+          setSortDirection('asc');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching priorities:', error);
+    }
+  };
+
+  useEffect(() => {
+    const handlePriorityUpdate = () => {
+      fetchPriorities();
+    };
+    
+    const handleFirstPriorityAdded = () => {
+      fetchPriorities();
+      setHasPriorityItems(true);
+      setSortField('priority');
+      setSortDirection('asc');
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'loginSession') {
+        setLastReloadTime(Date.now());
+      }
+    };
+    
+    window.addEventListener('prioritiesUpdated', handlePriorityUpdate);
+    window.addEventListener('firstPriorityAdded', handleFirstPriorityAdded);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('prioritiesUpdated', handlePriorityUpdate);
+      window.removeEventListener('firstPriorityAdded', handleFirstPriorityAdded);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkLoginStatus = () => {
+      const savedSession = localStorage.getItem('loginSession');
+      if (savedSession) {
+        try {
+          const session = JSON.parse(savedSession);
+          if (session.isLoggedIn && session.urlEnding === urlEnding) {
+            if (!isLoggedIn) {
+              setIsLoggedIn(true);
+              fetchPriorities();
+            }
+          } else {
+            if (isLoggedIn) {
+              setIsLoggedIn(false);
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing login session:', error);
+          localStorage.removeItem('loginSession');
+          if (isLoggedIn) {
+            setIsLoggedIn(false);
+          }
+        }
+      } else {
+        if (isLoggedIn) {
+          setIsLoggedIn(false);
+        }
+      }
+    };
+    
+    checkLoginStatus();
+    
+    window.addEventListener('storage', checkLoginStatus);
+    
+    return () => {
+      window.removeEventListener('storage', checkLoginStatus);
+    };
+  }, [urlEnding, isLoggedIn]);
+
   const getValueByField = (item: EnhancedWishlistItem, field: string): any => {
     if (field === 'name') return item.name;
+    
+    if (field === 'priority') {
+      return priorities[item.link] || 999;
+    }
     
     if (field.startsWith('comicData.')) {
       const nestedField = field.replace('comicData.', '');
@@ -96,6 +200,14 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
     }
     
     return item.comicData[field as keyof ComicData];
+  };
+
+  const handlePriorityChange = (url: string, priority: number) => {
+    setPriorities(prev => {
+      const updated = { ...prev, [url]: priority };
+      setHasPriorityItems(true);
+      return updated;
+    });
   };
 
   const filteredAndSortedData = wishlistData 
@@ -132,6 +244,18 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
             }
           });
         })
+        .map(item => {
+          if (priorities[item.link]) {
+            return {
+              ...item,
+              comicData: {
+                ...item.comicData,
+                priority: priorities[item.link]
+              }
+            };
+          }
+          return item;
+        })
         .sort((a, b) => {
           let valueA, valueB;
           
@@ -144,6 +268,13 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
           } else if (sortField === 'pageAmount') {
             valueA = parseInt(a.comicData.pageAmount?.replace(/[^0-9]/g, '') || '0');
             valueB = parseInt(b.comicData.pageAmount?.replace(/[^0-9]/g, '') || '0');
+          } else if (sortField === 'priority') {
+            valueA = priorities[a.link] || 999;
+            valueB = priorities[b.link] || 999;
+            
+            return sortDirection === 'asc' 
+              ? valueA - valueB 
+              : valueB - valueA;
           } else {
             valueA = a.comicData[sortField as keyof ComicData] || '';
             valueB = b.comicData[sortField as keyof ComicData] || '';
@@ -158,7 +289,9 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
             comparison = valueA.localeCompare(valueB);
           }
           
-          return sortDirection === 'asc' ? comparison : -comparison;
+          return sortField === 'priority'
+            ? comparison
+            : sortDirection === 'asc' ? comparison : -comparison;
         })
     : null;
 
@@ -416,7 +549,10 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-950 px-6 py-10">
       <Card className="w-full max-w-7xl shadow-xl border border-gray-800 rounded-3xl bg-gray-900 text-white p-6 md:p-8">
-        <CardHeader className="text-center mb-6">
+        <CardHeader className="text-center mb-6 relative">
+          <div className="absolute top-0 right-0">
+            <LoginButton currentUrlEnding={urlEnding} />
+          </div>
           <CardTitle className="text-4xl font-extrabold text-gray-100">
             Wishlist for <span className="text-indigo-600">{urlEnding}</span>
           </CardTitle>
@@ -450,13 +586,29 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none">
                         <SlidersHorizontal className="h-4 w-4 mr-2" />
-                        Sort by: {sortField.charAt(0).toUpperCase() + sortField.slice(1)} {sortDirection === 'asc' ? '↑' : '↓'}
+                        Sort by: {sortField === 'priority' ? 'Priority' : sortField.charAt(0).toUpperCase() + sortField.slice(1)} {sortDirection === 'asc' ? '↑' : '↓'}
                         <ChevronDown className="ml-2 h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="bg-gray-800 border-gray-700 w-56 shadow-lg shadow-black/50">
                       <DropdownMenuLabel className="text-gray-300 font-bold">Sort Options</DropdownMenuLabel>
                       <DropdownMenuSeparator className="bg-gray-700" />
+                      
+                      {hasPriorityItems && (
+                        <>
+                          <DropdownMenuItem 
+                            className={`${sortField === 'priority' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
+                            onClick={() => handleSortChange('priority')}
+                          >
+                            <Star className="h-4 w-4 mr-2" /> 
+                            Priority {sortField === 'priority' && 
+                                  <span className="ml-auto">{sortDirection === 'asc' ? '(1→10)' : '(10→1)'}</span>}
+                          </DropdownMenuItem>
+                          <div className="px-2 py-1 text-xs text-gray-400 border-t border-gray-700 mt-1">
+                            Priority scale: 1 (Highest) to 10 (Lowest)
+                          </div>
+                        </>
+                      )}
                       
                       <DropdownMenuItem 
                         className={`${sortField === 'name' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer py-2 font-medium`}
@@ -645,6 +797,9 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                       url={item.link} 
                       image={item.image} 
                       comicData={item.comicData}
+                      isLoggedIn={isLoggedIn}
+                      urlEnding={urlEnding}
+                      onPriorityChange={handlePriorityChange}
                     />
                   ))}
                 </div>

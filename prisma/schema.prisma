@@ -48,3 +48,11 @@ model nameNumberMap {
   name    String
   url     String @unique
 }
+
+model prioritys {
+  urlEnding String
+  url       String
+  priority  Int
+  
+  @@unique([urlEnding, url], name: "urlEnding_url")
+}
