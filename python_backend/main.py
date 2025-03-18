@@ -11,6 +11,13 @@ from get_comic_information import get_information
 import threading
 import time
 from functools import lru_cache
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from time import sleep
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
@@ -72,14 +79,19 @@ def send_wishlist_api():
 def get_wishlist_api():
     data = request.json
     email = data.get('email')
+    password = data.get('password')
 
     email = decrypt_string(email)
+    password = decrypt_string(password) if password else None
 
     if not email:
-        return jsonify({"error": "Email and password are required"}), 400
+        return jsonify({"error": "Email is required"}), 400
     try:
-        result = get_wishlist(email)
-        return jsonify({"message": "Got Wishlist successfull", "result": str(result)}), 200
+        if password:
+            result = get_wishlist(email, password)
+        else:
+            result = get_wishlist(email)
+        return jsonify({"message": "Got Wishlist successfully", "result": json.dumps(result)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -96,13 +108,15 @@ def get_wishlist_complete_api():
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
-    print("sending wishlist...")
-    result = send_wishlist(email, password)
-    if result == "Login failed":
-        return jsonify({"message": "Login failed"}), 400
-    print("email send successfull.")
-    result = get_wishlist(email)
-    return jsonify({"message": "Got Wishlist successfull", "result": json.dumps(result)}), 200
+    try:
+        print(f"Getting wishlist for {email} using direct authentication...")
+        result = get_wishlist(email, password)
+        return jsonify({"message": "Got Wishlist successfully", "result": json.dumps(result)}), 200
+    except Exception as e:
+        print(f"Error in get_wishlist_complete_api: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/get_comic_information', methods=['POST'])
 def get_comic_information_route():
@@ -209,6 +223,34 @@ def get_comic_information_wildcard(subpath=None):
         return get_comic_information_api()
     else:
         return get_comic_information_route()
+
+@app.route('/get_shared_wishlist', methods=['GET'])
+def get_shared_wishlist_api():
+    try:
+        print("Handling shared wishlist request...")
+        
+        # Get credentials from environment variables
+        shared_email = os.getenv("SHARED_EMAIL")
+        shared_password = os.getenv("SHARED_PASSWORD")
+        
+        if not shared_email or not shared_password:
+            print("Shared credentials not properly configured. Check SHARED_EMAIL and SHARED_PASSWORD in .env")
+            return jsonify({"error": "Shared wishlist access not configured"}), 500
+            
+        # Get the wishlist using the shared account credentials
+        print(f"Getting wishlist with shared account credentials...")
+        result = get_wishlist(shared_email, shared_password)
+        
+        # Override the message to be generic
+        if result.get("data"):
+            result["message"] = "Shared Wishlist"
+            
+        return jsonify({"message": "Got shared wishlist successfully", "result": json.dumps(result)}), 200
+    except Exception as e:
+        print(f"Error getting shared wishlist: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     print("Available routes:")
