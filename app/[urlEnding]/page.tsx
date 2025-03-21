@@ -48,6 +48,8 @@ type ComicData = {
   fallback?: boolean;
   priority?: number;
   hasNote?: boolean;
+  hasDependency?: boolean;
+  dependencyUrl?: string;
 };
 
 type EnhancedWishlistItem = {
@@ -87,6 +89,9 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
   const [showOnlyWithNotes, setShowOnlyWithNotes] = useState(false);
 
   const [lastReloadTime, setLastReloadTime] = useState<number>(Date.now());
+
+  const [dependencies, setDependencies] = useState<Record<string, string>>({});
+  const [hasDependencies, setHasDependencies] = useState(false);
 
   const resolvedParams = use(params);
   const { urlEnding } = resolvedParams;
@@ -148,6 +153,35 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
       }
     } catch (error) {
       console.error('Error fetching notes:', error);
+    }
+  };
+
+  const fetchDependencies = async (items?: EnhancedWishlistItem[]) => {
+    try {
+      const itemsToProcess = items || wishlistData;
+      if (!itemsToProcess) return;
+      
+      const dependencyPromises = itemsToProcess.map(async (item) => {
+        const response = await fetch(`/api/get_dependencies?urlEnding=${urlEnding}&url=${encodeURIComponent(item.link)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.dependencies && data.dependencies.length > 0) {
+            return { url: item.link, dependencyUrl: data.dependencies[0].dependencyUrl };
+          }
+        }
+        return null;
+      });
+
+      const results = await Promise.all(dependencyPromises);
+      const validResults = results.filter((result): result is { url: string; dependencyUrl: string } => result !== null);
+      const dependencyMap: Record<string, string> = {};
+      validResults.forEach(result => {
+        dependencyMap[result.url] = result.dependencyUrl;
+      });
+      setDependencies(dependencyMap);
+      setHasDependencies(validResults.length > 0);
+    } catch (error) {
+      console.error('Error fetching dependencies:', error);
     }
   };
 
@@ -233,6 +267,18 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
     };
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    const handleDependencyUpdate = () => {
+      fetchDependencies();
+    };
+    
+    window.addEventListener('dependenciesUpdated', handleDependencyUpdate);
+    
+    return () => {
+      window.removeEventListener('dependenciesUpdated', handleDependencyUpdate);
+    };
+  }, [wishlistData]);
+
   const getValueByField = (item: EnhancedWishlistItem, field: string): any => {
     if (field === 'name') return item.name;
     
@@ -314,10 +360,73 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
               hasNote: true
             };
           }
+
+          if (dependencies[item.link]) {
+            enrichedItem.comicData = {
+              ...enrichedItem.comicData,
+              hasDependency: true,
+              dependencyUrl: dependencies[item.link]
+            };
+          }
           
           return enrichedItem;
         })
         .sort((a, b) => {
+          // Helper function to get the full dependency chain for an item
+          const getDependencyChain = (item: EnhancedWishlistItem, visited: Set<string> = new Set()): string[] => {
+            if (visited.has(item.link)) return [];
+            visited.add(item.link);
+            
+            const chain = [item.link];
+            const dependencyUrl = dependencies[item.link];
+            
+            if (dependencyUrl) {
+              const dependencyItem = wishlistData?.find(i => i.link === dependencyUrl);
+              if (dependencyItem) {
+                chain.unshift(...getDependencyChain(dependencyItem, visited));
+              }
+            }
+            
+            return chain;
+          };
+
+          // Get dependency chains for both items
+          const chainA = getDependencyChain(a);
+          const chainB = getDependencyChain(b);
+
+          // If either chain includes the other item, sort based on dependency
+          if (chainA.includes(b.link)) return 1;
+          if (chainB.includes(a.link)) return -1;
+
+          // If items are in different chains, compare their root dependencies
+          const rootA = chainA[0];
+          const rootB = chainB[0];
+          
+          if (rootA !== rootB) {
+            // Get priorities of root items
+            const rootItemA = wishlistData?.find(i => i.link === rootA);
+            const rootItemB = wishlistData?.find(i => i.link === rootB);
+            const rootPriorityA = rootItemA ? (priorities[rootItemA.link] || 999) : 999;
+            const rootPriorityB = rootItemB ? (priorities[rootItemB.link] || 999) : 999;
+            
+            if (rootPriorityA !== rootPriorityB) {
+              return rootPriorityA - rootPriorityB;
+            }
+            
+            // If root priorities are equal, sort by chain position
+            const rootCompare = rootA.localeCompare(rootB);
+            if (rootCompare !== 0) return rootCompare;
+          }
+
+          // If in same chain or no dependencies, sort by priority
+          const priorityA = priorities[a.link] || 999;
+          const priorityB = priorities[b.link] || 999;
+
+          if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+          }
+
+          // If priorities are equal, use the regular sorting
           let valueA, valueB;
           
           if (sortField === 'name') {
@@ -330,15 +439,19 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
             valueA = parseInt(a.comicData.pageAmount?.replace(/[^0-9]/g, '') || '0');
             valueB = parseInt(b.comicData.pageAmount?.replace(/[^0-9]/g, '') || '0');
           } else if (sortField === 'priority') {
-            valueA = priorities[a.link] || 999;
-            valueB = priorities[b.link] || 999;
+            return sortDirection === 'asc' 
+              ? priorityA - priorityB 
+              : priorityB - priorityA;
+          } else if (sortField === 'hasNote') {
+            valueA = notes[a.link] ? 1 : 0;
+            valueB = notes[b.link] ? 1 : 0;
             
             return sortDirection === 'asc' 
               ? valueA - valueB 
               : valueB - valueA;
-          } else if (sortField === 'hasNote') {
-            valueA = notes[a.link] ? 1 : 0;
-            valueB = notes[b.link] ? 1 : 0;
+          } else if (sortField === 'hasDependency') {
+            valueA = dependencies[a.link] ? 1 : 0;
+            valueB = dependencies[b.link] ? 1 : 0;
             
             return sortDirection === 'asc' 
               ? valueA - valueB 
@@ -395,21 +508,21 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
   const getFilterDescription = (filter: FilterOption): string => {
     const fieldMap: Record<string, string> = {
       'name': 'Name',
-      'comicData.price': 'Price',
-      'comicData.author': 'Author',
-      'comicData.drawer': 'Artist',
-      'comicData.release': 'Release Date',
-      'comicData.type': 'Type',
-      'comicData.pageAmount': 'Pages',
-      'comicData.binding': 'Binding',
+      'comicData.price': 'Preis',
+      'comicData.author': 'Autor',
+      'comicData.drawer': 'Zeichner',
+      'comicData.release': 'Erscheinungsdatum',
+      'comicData.type': 'Typ',
+      'comicData.pageAmount': 'Seitenzahl',
+      'comicData.binding': 'Bindung',
       'comicData.ISBN': 'ISBN',
     };
 
     const operatorMap: Record<string, string> = {
-      'contains': 'contains',
-      'equals': 'equals',
-      'greaterThan': '>',
-      'lessThan': '<'
+      'contains': 'enthält',
+      'equals': 'ist gleich',
+      'greaterThan': 'größer als',
+      'lessThan': 'kleiner als'
     };
 
     const fieldName = fieldMap[filter.field] || filter.field;
@@ -443,7 +556,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
           
           await fetchBulkComicData(basicWishlistData);
           
-          toast.info('Loading the latest wishlist data...', {
+          toast.info('Lade die neuesten Wunschlistendaten...', {
             position: "bottom-left",
             autoClose: 5000,
           });
@@ -471,13 +584,13 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
         
         await fetchBulkComicData(basicWishlistData);
         
-        toast.success('Wishlist updated with the latest data', {
+        toast.success('Wunschliste mit den neuesten Daten aktualisiert', {
           position: "bottom-left",
           autoClose: 3000,
         });
       } catch (err: any) {
         setError(err.message);
-        toast.error('Failed to fetch the latest wishlist data', {
+        toast.error('Fehler beim Laden der neuesten Wunschlistendaten', {
           position: "bottom-left",
           autoClose: 5000,
         });
@@ -581,7 +694,9 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
         });
         
         setWishlistData(transformedData);
+        
         setLoading(false);
+        fetchDependencies(transformedData);
       } catch (err) {
         console.error('Error fetching bulk comic data:', err);
         const fallbackData = basicItems.map(item => createFallbackItem(item));
@@ -622,7 +737,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
             <LoginButton currentUrlEnding={urlEnding} />
           </div>
           <CardTitle className="text-4xl font-extrabold text-gray-100">
-            Wishlist for <span className="text-indigo-600">{urlEnding}</span>
+            Wunschliste von <span className="text-indigo-600">{urlEnding}</span>
           </CardTitle>
         </CardHeader>
 
@@ -630,11 +745,11 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
           {loading && !wishlistData ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="h-12 w-12 animate-spin text-indigo-500 mb-4" />
-              <p className="text-xl text-gray-400">Loading wishlist data...</p>
+              <p className="text-xl text-gray-400">Lade Wunschliste...</p>
             </div>
           ) : error && !wishlistData ? (
             <div className="text-center py-10">
-              <div className="text-xl text-red-500 mb-4">Error: {error}</div>
+              <div className="text-xl text-red-500 mb-4">Fehler: {error}</div>
               <button 
                 onClick={() => {
                   setLoading(true);
@@ -643,7 +758,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-white"
               >
-                Retry
+                Erneut versuchen
               </button>
             </div>
           ) : wishlistData && wishlistData.length > 0 ? (
@@ -654,12 +769,22 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none">
                         <SlidersHorizontal className="h-4 w-4 mr-2" />
-                        Sort by: {sortField === 'priority' ? 'Priority' : sortField.charAt(0).toUpperCase() + sortField.slice(1)} {sortDirection === 'asc' ? '↑' : '↓'}
+                        Sortieren nach: {sortField === 'priority' ? 'Priorität' : 
+                                       sortField === 'name' ? 'Name' :
+                                       sortField === 'price' ? 'Preis' :
+                                       sortField === 'release' ? 'Erscheinungsdatum' :
+                                       sortField === 'author' ? 'Autor' :
+                                       sortField === 'type' ? 'Typ' :
+                                       sortField === 'pageAmount' ? 'Seitenzahl' :
+                                       sortField === 'binding' ? 'Bindung' :
+                                       sortField === 'hasNote' ? 'Notizen' :
+                                       sortField === 'hasDependency' ? 'Abhängigkeiten' :
+                                       sortField.charAt(0).toUpperCase() + sortField.slice(1)} {sortDirection === 'asc' ? '↑' : '↓'}
                         <ChevronDown className="ml-2 h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="bg-gray-800 border-gray-700 w-56 shadow-lg shadow-black/50">
-                      <DropdownMenuLabel className="text-gray-300 font-bold">Sort Options</DropdownMenuLabel>
+                      <DropdownMenuLabel className="text-gray-300 font-bold">Sortieroptionen</DropdownMenuLabel>
                       <DropdownMenuSeparator className="bg-gray-700" />
                       
                       {hasPriorityItems && (
@@ -669,11 +794,11 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                             onClick={() => handleSortChange('priority')}
                           >
                             <Star className="h-4 w-4 mr-2" /> 
-                            Priority {sortField === 'priority' && 
+                            Priorität {sortField === 'priority' && 
                                   <span className="ml-auto">{sortDirection === 'asc' ? '(1→10)' : '(10→1)'}</span>}
                           </button>
                           <div className="px-2 py-1 text-xs text-gray-400 border-t border-gray-700 mt-1">
-                            Priority scale: 1 (Highest) to 10 (Lowest)
+                            Prioritätsskala: 1 (Höchste) bis 10 (Niedrigste)
                           </div>
                         </>
                       )}
@@ -690,7 +815,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                         className={`w-full text-left px-2 py-2 ${sortField === 'price' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('price')}
                       >
-                        Price {sortField === 'price' && 
+                        Preis {sortField === 'price' && 
                                <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                       </button>
                       
@@ -698,7 +823,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                         className={`w-full text-left px-2 py-2 ${sortField === 'release' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('release')}
                       >
-                        Release Date {sortField === 'release' && 
+                        Erscheinungsdatum {sortField === 'release' && 
                                      <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                       </button>
                       
@@ -706,7 +831,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                         className={`w-full text-left px-2 py-2 ${sortField === 'author' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('author')}
                       >
-                        Author {sortField === 'author' && 
+                        Autor {sortField === 'author' && 
                                 <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                       </button>
                       
@@ -714,7 +839,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                         className={`w-full text-left px-2 py-2 ${sortField === 'type' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('type')}
                       >
-                        Type {sortField === 'type' && 
+                        Typ {sortField === 'type' && 
                               <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                       </button>
                       
@@ -722,7 +847,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                         className={`w-full text-left px-2 py-2 ${sortField === 'pageAmount' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('pageAmount')}
                       >
-                        Page Count {sortField === 'pageAmount' && 
+                        Seitenzahl {sortField === 'pageAmount' && 
                                    <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                       </button>
 
@@ -730,7 +855,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                         className={`w-full text-left px-2 py-2 ${sortField === 'binding' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
                         onClick={() => handleSortChange('binding')}
                       >
-                        Binding {sortField === 'binding' && 
+                        Bindung {sortField === 'binding' && 
                                 <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                       </button>
 
@@ -740,8 +865,21 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                           onClick={() => handleSortChange('hasNote')}
                         >
                           <StickyNote className="h-4 w-4 mr-2" />
-                          Notes {sortField === 'hasNote' && 
+                          Notizen {sortField === 'hasNote' && 
                                    <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
+                        </button>
+                      )}
+
+                      {hasDependencies && (
+                        <button 
+                          className={`w-full text-left px-2 py-2 ${sortField === 'hasDependency' ? 'bg-indigo-700' : ''} hover:bg-indigo-600 hover:text-white cursor-pointer font-medium flex items-center`}
+                          onClick={() => handleSortChange('hasDependency')}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4z" clipRule="evenodd" />
+                          </svg>
+                          Abhängigkeiten {sortField === 'hasDependency' && 
+                                       <span className="ml-auto">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
                         </button>
                       )}
                     </DropdownMenuContent>
@@ -759,7 +897,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                       onClick={() => setShowOnlyWithNotes(!showOnlyWithNotes)}
                     >
                       <StickyNote className="h-4 w-4 mr-2" />
-                      {showOnlyWithNotes ? "Show all" : "Only with notes"}
+                      {showOnlyWithNotes ? "Alle anzeigen" : "Nur mit Notizen"}
                     </Button>
                   )}
                   
@@ -767,21 +905,21 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                     <DialogTrigger asChild>
                       <Button variant="outline" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none">
                         <Filter className="h-4 w-4 mr-2" />
-                        Add Filter
+                        Filter hinzufügen
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="bg-gray-800 text-gray-100 border-gray-700 shadow-lg shadow-black/50">
                       <DialogHeader>
-                        <DialogTitle className="text-gray-100 font-bold">Add Filter</DialogTitle>
+                        <DialogTitle className="text-gray-100 font-bold">Filter hinzufügen</DialogTitle>
                         <DialogDescription className="text-gray-300">
-                          Create a filter to narrow down your wishlist items.
+                          Erstellen Sie einen Filter, um Ihre Wunschliste einzugrenzen.
                         </DialogDescription>
                       </DialogHeader>
                       
                       <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="field" className="text-right text-gray-200">
-                            Field
+                            Feld
                           </Label>
                           <select
                             id="field"
@@ -790,16 +928,16 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                             className="col-span-3 bg-gray-700 border-gray-600 rounded-md p-2 text-white"
                           >
                             <option value="name">Name</option>
-                            <option value="comicData.price">Price</option>
-                            <option value="comicData.author">Author</option>
-                            <option value="comicData.drawer">Artist</option>
-                            <option value="comicData.release">Release Date</option>
-                            <option value="comicData.type">Type</option>
-                            <option value="comicData.pageAmount">Page Count</option>
-                            <option value="comicData.binding">Binding</option>
+                            <option value="comicData.price">Preis</option>
+                            <option value="comicData.author">Autor</option>
+                            <option value="comicData.drawer">Zeichner</option>
+                            <option value="comicData.release">Erscheinungsdatum</option>
+                            <option value="comicData.type">Typ</option>
+                            <option value="comicData.pageAmount">Seitenzahl</option>
+                            <option value="comicData.binding">Bindung</option>
                             <option value="comicData.ISBN">ISBN</option>
                             {hasNotes && (
-                              <option value="hasNote">Notes</option>
+                              <option value="hasNote">Notizen</option>
                             )}
                           </select>
                         </div>
@@ -814,20 +952,20 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                             onChange={(e) => setNewFilter({...newFilter, operator: e.target.value as any})}
                             className="col-span-3 bg-gray-700 border-gray-600 rounded-md p-2 text-white"
                           >
-                            <option value="contains">Contains</option>
-                            <option value="equals">Equals</option>
-                            <option value="greaterThan">Greater Than</option>
-                            <option value="lessThan">Less Than</option>
+                            <option value="contains">Enthält</option>
+                            <option value="equals">Ist gleich</option>
+                            <option value="greaterThan">Größer als</option>
+                            <option value="lessThan">Kleiner als</option>
                           </select>
                         </div>
                         
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="value" className="text-right text-gray-200">
-                            Value
+                            Wert
                           </Label>
                           <Input
                             id="value"
-                            placeholder="Filter value..."
+                            placeholder="Filterwert..."
                             value={newFilter.value}
                             onChange={(e) => setNewFilter({...newFilter, value: e.target.value})}
                             className="col-span-3 bg-gray-700 border-gray-600 text-white placeholder:text-gray-400"
@@ -841,7 +979,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                           className="bg-indigo-600 hover:bg-indigo-700 text-white"
                           disabled={!newFilter.value.trim()}
                         >
-                          Add Filter
+                          Filter hinzufügen
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -870,7 +1008,7 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
                           className="h-7 px-2 text-xs text-gray-400 hover:text-white hover:bg-gray-800"
                           onClick={clearAllFilters}
                         >
-                          Clear All
+                          Alle löschen
                         </Button>
                       )}
                     </div>
@@ -880,57 +1018,61 @@ export default function Page({ params }: { params: Promise<{ urlEnding: string }
               
               {filters.length > 0 && filteredAndSortedData && (
                 <div className="mb-4 text-sm text-gray-400">
-                  Showing {filteredAndSortedData.length} of {wishlistData.length} items
+                  Zeige {filteredAndSortedData.length} von {wishlistData.length} Comics
                 </div>
               )}
               
               {filteredAndSortedData && filteredAndSortedData.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
                   {filteredAndSortedData.map((item, index) => (
-                    <Item 
-                      key={index} 
-                      name={item.name} 
-                      url={item.link} 
-                      image={item.image} 
+                    <Item
+                      key={index}
+                      name={item.name}
+                      url={item.link}
+                      image={item.image}
                       comicData={item.comicData}
                       isLoggedIn={isLoggedIn}
                       urlEnding={urlEnding}
                       onPriorityChange={handlePriorityChange}
+                      wishlistItems={wishlistData?.map(item => ({
+                        name: item.name,
+                        url: item.link
+                      })) || []}
                     />
                   ))}
                 </div>
               ) : showOnlyWithNotes ? (
                 <div className="text-center py-10 text-xl text-gray-500">
-                  No comics with notes found
+                  Keine Comics mit Notizen gefunden
                   <div className="mt-4">
                     <Button 
                       variant="outline" 
                       onClick={() => setShowOnlyWithNotes(false)}
                       className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700"
                     >
-                      Show All
+                      Alle anzeigen
                     </Button>
                   </div>
                 </div>
               ) : filters.length > 0 ? (
                 <div className="text-center py-10 text-xl text-gray-500">
-                  No items match your current filters
+                  Keine Comics entsprechen den aktuellen Filtern
                   <div className="mt-4">
                     <Button 
                       variant="outline" 
                       onClick={clearAllFilters}
                       className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700"
                     >
-                      Clear All Filters
+                      Filter löschen
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-10 text-xl text-gray-500">No items found in the wishlist</div>
+                <div className="text-center py-10 text-xl text-gray-500">Keine Comics in der Wunschliste gefunden</div>
               )}
             </>
           ) : (
-            <div className="text-center py-10 text-xl text-gray-500">No items found in the wishlist</div>
+            <div className="text-center py-10 text-xl text-gray-500">Keine Comics in der Wunschliste gefunden</div>
           )}
         </CardContent>
       </Card>

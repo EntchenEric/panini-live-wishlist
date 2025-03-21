@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Info, RefreshCw, Calendar, Book, User, Layers, AlertTriangle, Hash, Palette, Ruler, Pencil, Save, StickyNote } from 'lucide-react';
+import { Loader2, Info, RefreshCw, Calendar, Book, User, Layers, AlertTriangle, Hash, Palette, Ruler, Pencil, Save, StickyNote, Link } from 'lucide-react';
 import { 
   Tooltip,
   TooltipContent,
@@ -16,8 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { PrioritySelector } from './PrioritySelector';
+import { Input } from "@/components/ui/input";
 
 type ComicData = {
   price: string;
@@ -39,6 +41,8 @@ type ComicData = {
   color?: string;
   cacheAge?: string;
   priority?: number;
+  hasDependency?: boolean;
+  dependencyUrl?: string;
 };
 
 type ItemProps = {
@@ -49,9 +53,10 @@ type ItemProps = {
   isLoggedIn?: boolean;
   urlEnding: string;
   onPriorityChange?: (url: string, priority: number) => void;
+  wishlistItems?: Array<{ name: string; url: string }>;
 };
 
-export function Item({ name, url, image, comicData, isLoggedIn = false, urlEnding, onPriorityChange }: ItemProps) {
+export function Item({ name, url, image, comicData, isLoggedIn = false, urlEnding, onPriorityChange, wishlistItems = [] }: ItemProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -62,61 +67,59 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
   const [noteError, setNoteError] = useState<string | null>(null);
   const [hasNote, setHasNote] = useState(false);
   const [notePreview, setNotePreview] = useState<string>('');
+  const [dependencyUrl, setDependencyUrl] = useState<string>('');
+  const [isEditingDependency, setIsEditingDependency] = useState(false);
+  const [isSavingDependency, setIsSavingDependency] = useState(false);
+  const [dependencyError, setDependencyError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [filteredItems, setFilteredItems] = useState<Array<{ name: string; url: string }>>([]);
+  const [dependencyDialogOpen, setDependencyDialogOpen] = useState(false);
+  const [currentPriority, setCurrentPriority] = useState<number | undefined>(comicData.priority);
 
   useEffect(() => {
-    if (isLoggedIn) {
-      checkNoteExistsAndGetPreview();
-      
-      if (dialogOpen) {
-        fetchNote();
-      }
-    }
-  }, [dialogOpen, isLoggedIn]);
+    const loadData = async () => {
+      if (isLoggedIn) {
+        try {
+          const [noteResponse, dependencyResponse] = await Promise.all([
+            fetch(`/api/get_note?urlEnding=${urlEnding}&url=${encodeURIComponent(url)}`),
+            fetch(`/api/get_dependencies?urlEnding=${urlEnding}&url=${encodeURIComponent(url)}`)
+          ]);
 
-  const checkNoteExistsAndGetPreview = async () => {
-    try {
-      const response = await fetch(`/api/get_note?urlEnding=${urlEnding}&url=${encodeURIComponent(url)}`);
-      if (response.ok) {
-        const data = await response.json();
-        const hasNoteContent = !!data.note;
-        setHasNote(hasNoteContent);
-        
-        if (hasNoteContent) {
-          const fullNote = data.note;
-          const preview = fullNote.length > 60 
-            ? fullNote.substring(0, 60) + '...' 
-            : fullNote;
-          setNotePreview(preview);
+          // Handle note data
+          if (noteResponse.ok) {
+            const noteData = await noteResponse.json();
+            const hasNoteContent = !!noteData.note;
+            setHasNote(hasNoteContent);
+            
+            if (hasNoteContent) {
+              const fullNote = noteData.note;
+              const preview = fullNote.length > 60 
+                ? fullNote.substring(0, 60) + '...' 
+                : fullNote;
+              setNotePreview(preview);
+            }
+          }
+
+          // Handle dependency data
+          if (dependencyResponse.ok) {
+            const dependencyData = await dependencyResponse.json();
+            if (dependencyData.dependencies && dependencyData.dependencies.length > 0) {
+              setDependencyUrl(dependencyData.dependencies[0].dependencyUrl);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading data:', error);
         }
       }
-    } catch (error) {
-      console.error('Error checking if note exists:', error);
-    }
-  };
+    };
 
-  const fetchNote = async () => {
-    try {
-      const response = await fetch(`/api/get_note?urlEnding=${urlEnding}&url=${encodeURIComponent(url)}`);
-      if (response.ok) {
-        const data = await response.json();
-        const noteContent = data.note || '';
-        setNote(noteContent);
-        setOriginalNote(noteContent);
-        setHasNote(!!noteContent);
-        
-        if (noteContent) {
-          const preview = noteContent.length > 60 
-            ? noteContent.substring(0, 60) + '...' 
-            : noteContent;
-          setNotePreview(preview);
-        }
-      } else {
-        console.error('Error fetching note:', await response.text());
-      }
-    } catch (error) {
-      console.error('Error fetching note:', error);
-    }
-  };
+    loadData();
+  }, [isLoggedIn, urlEnding, url]);
+
+  useEffect(() => {
+    setCurrentPriority(comicData.priority);
+  }, [comicData.priority]);
 
   const saveNote = async () => {
     if (!isLoggedIn) return;
@@ -170,50 +173,118 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
   const hasNoteChanges = note !== originalNote;
 
   const handlePriorityChange = (priority: number) => {
+    setCurrentPriority(priority);
     if (onPriorityChange) {
       onPriorityChange(url, priority);
     }
   };
 
   const getPriorityStyle = () => {
-    if (!comicData.priority) return "";
+    if (!currentPriority) return "";
     
-    if (comicData.priority <= 3) {
+    if (currentPriority <= 3) {
       return "ring-2 ring-green-500/30 shadow-lg shadow-green-900/20 bg-gradient-to-b from-gray-800 to-green-950/30";
-    } else if (comicData.priority <= 6) {
+    } else if (currentPriority <= 6) {
       return "ring-2 ring-yellow-500/30 shadow-lg shadow-yellow-900/20 bg-gradient-to-b from-gray-800 to-yellow-950/30";
     } else {
       return "ring-2 ring-red-500/30 shadow-lg shadow-red-900/20 bg-gradient-to-b from-gray-800 to-red-950/30";
     }
   };
 
+  const saveDependency = async () => {
+    if (!isLoggedIn) return;
+    
+    setIsSavingDependency(true);
+    setDependencyError(null);
+    
+    try {
+      const response = await fetch('/api/save_dependency', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          urlEnding,
+          url,
+          dependencyUrl
+        }),
+      });
+      
+      if (response.ok) {
+        setIsEditingDependency(false);
+        setDependencyDialogOpen(false);
+        window.dispatchEvent(new CustomEvent('dependenciesUpdated'));
+      } else {
+        const errorText = await response.text();
+        setDependencyError('Failed to save dependency: ' + errorText);
+      }
+    } catch (error) {
+      setDependencyError('Error saving dependency: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsSavingDependency(false);
+    }
+  };
+
+  const handleDependencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDependencyUrl(e.target.value);
+  };
+
+  const hasDependencyChanges = dependencyUrl !== comicData.dependencyUrl;
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      const filtered = wishlistItems.filter(item => 
+        item.name.toLowerCase().includes(query.toLowerCase()) ||
+        item.url.toLowerCase().includes(query.toLowerCase())
+      );
+      setFilteredItems(filtered);
+      setShowSearchResults(true);
+    } else {
+      setFilteredItems([]);
+      setShowSearchResults(false);
+    }
+  };
+
+  const handleItemSelect = (selectedUrl: string) => {
+    const selectedItem = wishlistItems.find(item => item.url === selectedUrl);
+    setDependencyUrl(selectedUrl);
+    setSearchQuery(selectedItem?.name || selectedUrl);
+    setShowSearchResults(false);
+    setFilteredItems([]);
+  };
+
   return (
     <div className="relative">
       <Card className={`group w-full max-w-xs min-h-[24rem] rounded-lg overflow-hidden bg-gray-800 shadow-md transition-transform transform hover:scale-105 hover:shadow-2xl ${getPriorityStyle()} pt-0`}>
-        {comicData.priority && (
+        {currentPriority && (
           <div className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
             style={{
-              backgroundColor: comicData.priority <= 3 ? '#065f46' : 
-                              comicData.priority <= 6 ? '#854d0e' : '#7f1d1d',
+              backgroundColor: currentPriority <= 3 ? '#065f46' : 
+                            currentPriority <= 6 ? '#854d0e' : '#7f1d1d',
               color: 'white',
               boxShadow: '0 0 8px rgba(0,0,0,0.5)',
             }}
           >
-            {comicData.priority}
+            {currentPriority}
           </div>
         )}
         
-        {isLoggedIn && hasNote && (
+        {comicData.hasDependency && (
           <div className="absolute top-2 left-2 z-10">
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center shadow-md">
-                    <StickyNote className="h-4 w-4 text-white" />
+                <TooltipTrigger>
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-indigo-900/30 border border-indigo-400/20 backdrop-blur-sm transform transition-all duration-200 hover:scale-110"
+                    style={{
+                      backdropFilter: 'blur(8px)',
+                    }}
+                  >
+                    <Link />
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="right">
-                  <p>Hat Notizen</p>
+                <TooltipContent>
+                  <p>Dieser Comic hat Abhängigkeiten</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -302,40 +373,85 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
                 <PrioritySelector 
                   url={url}
                   urlEnding={urlEnding}
-                  initialPriority={comicData.priority}
+                  initialPriority={currentPriority}
                   isLoggedIn={isLoggedIn}
                   onPriorityChange={handlePriorityChange}
                 />
                 
                 {isLoggedIn && (
-                  hasNote && notePreview ? (
-                    <div 
-                      className="w-full mt-2 p-2 bg-indigo-900/30 rounded-md border border-indigo-800/50 text-gray-300 text-xs cursor-pointer hover:bg-indigo-900/50"
-                      onClick={() => setDialogOpen(true)}
-                    >
-                      <div className="flex items-start gap-1.5">
-                        <StickyNote className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
-                        <p className="line-clamp-2 whitespace-pre-wrap">{notePreview}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div 
-                      className="w-full mt-2 flex justify-center"
-                      onClick={() => {
-                        setDialogOpen(true);
-                        setIsEditingNote(true);
-                      }}
-                    >
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="bg-gray-700 hover:bg-indigo-800 border-none text-gray-300 text-xs py-1 h-7"
+                  <>
+                    {hasNote && notePreview ? (
+                      <div 
+                        className="w-full mt-2 p-2 bg-indigo-900/30 rounded-md border border-indigo-800/50 text-gray-300 text-xs cursor-pointer hover:bg-indigo-900/50"
+                        onClick={() => setDialogOpen(true)}
                       >
-                        <StickyNote className="h-3 w-3 mr-1.5" />
-                        Notiz hinzufügen
-                      </Button>
-                    </div>
-                  )
+                        <div className="flex items-start gap-1.5">
+                          <StickyNote className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                          <p className="line-clamp-2 whitespace-pre-wrap">{notePreview}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div 
+                        className="w-full mt-2 flex justify-center"
+                        onClick={() => {
+                          setDialogOpen(true);
+                          setIsEditingNote(true);
+                        }}
+                      >
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="bg-gray-700 hover:bg-indigo-800 border-none text-gray-300 text-xs py-1 h-7"
+                        >
+                          <StickyNote className="h-3 w-3 mr-1.5" />
+                          Notiz hinzufügen
+                        </Button>
+                      </div>
+                    )}
+
+                    {comicData.hasDependency ? (
+                      <div 
+                        className="w-full mt-2 p-2 bg-blue-900/30 rounded-md border border-blue-800/50 text-gray-300 text-xs cursor-pointer hover:bg-blue-900/50"
+                        onClick={() => isLoggedIn && setDependencyDialogOpen(true)}
+                      >
+                        <div className="flex items-start gap-1.5">
+                          <Link />
+                          <div className="flex items-center gap-1">
+                            <span>Dieser Comic basiert auf:
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className={`${isLoggedIn ? 'text-blue-400 hover:text-blue-300 cursor-help' : 'text-blue-400'}`}>
+                                    {wishlistItems.find(item => item.url === comicData.dependencyUrl)?.name || comicData.dependencyUrl}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{isLoggedIn ? 'Klicken Sie, um das abhängige Comic zu öffnen' : 'Abhängiges Comic'}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : isLoggedIn && (
+                      <div 
+                        className="w-full mt-2 flex justify-center"
+                        onClick={() => {
+                          setDependencyDialogOpen(true);
+                        }}
+                      >
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="bg-gray-700 hover:bg-blue-800 border-none text-gray-300 text-xs py-1 h-7"
+                        >
+                          <Link />
+                          Abhängigkeit hinzufügen
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
                 
                 {comicData.fromCache && (
@@ -623,6 +739,93 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
           </Dialog>
         </CardFooter>
       </Card>
+
+      <Dialog open={dependencyDialogOpen} onOpenChange={setDependencyDialogOpen}>
+        <DialogContent className="bg-gray-800 text-white border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-100">Abhängigkeiten verwalten</DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Abhängigkeiten für {comicData.name} hinzufügen oder bearbeiten
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="relative">
+              <Input
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Comic als Abhängigkeit suchen..."
+                className="w-full bg-gray-900 border-gray-700 text-gray-200"
+                disabled={isSavingDependency}
+              />
+              {showSearchResults && filteredItems.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-gray-900 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {filteredItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className="px-3 py-2 hover:bg-gray-800 cursor-pointer text-sm"
+                      onClick={() => handleItemSelect(item.url)}
+                    >
+                      <div className="font-medium text-gray-200">{item.name}</div>
+                      <div className="text-xs text-gray-400 truncate">{item.url}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {comicData.dependencyUrl && (
+              <div className="bg-gray-900 rounded-md p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-300">Aktuelle Abhängigkeit:</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="text-blue-400 hover:text-blue-300 cursor-help">
+                          {wishlistItems.find(item => item.url === comicData.dependencyUrl)?.name || comicData.dependencyUrl}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Klicken Sie, um das abhängige Comic zu öffnen</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+            )}
+
+            {dependencyError && (
+              <p className="text-xs text-red-400">{dependencyError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setDependencyUrl(comicData.dependencyUrl || '');
+                setDependencyDialogOpen(false);
+              }}
+              className="text-gray-400 hover:text-gray-300 hover:bg-gray-700"
+              disabled={isSavingDependency}
+            >
+              Abbrechen
+            </Button>
+            <Button 
+              onClick={saveDependency}
+              className="bg-blue-600 hover:bg-blue-500 text-white"
+              disabled={isSavingDependency || !hasDependencyChanges}
+            >
+              {isSavingDependency ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

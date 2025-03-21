@@ -64,3 +64,11 @@ model note {
 
   @@unique([urlEnding, url], name: "urlEnding_url")
 }
+
+model dependency {
+  urlEnding String
+  url      String
+  dependencyUrl String
+
+  @@unique([urlEnding, url], name: "urlEnding_url")
+}
