@@ -378,7 +378,7 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
                   onPriorityChange={handlePriorityChange}
                 />
                 
-                {isLoggedIn && (
+                {isLoggedIn ? (
                   <>
                     {hasNote && notePreview ? (
                       <div 
@@ -408,50 +408,50 @@ export function Item({ name, url, image, comicData, isLoggedIn = false, urlEndin
                         </Button>
                       </div>
                     )}
-
-                    {comicData.hasDependency ? (
-                      <div 
-                        className="w-full mt-2 p-2 bg-blue-900/30 rounded-md border border-blue-800/50 text-gray-300 text-xs cursor-pointer hover:bg-blue-900/50"
-                        onClick={() => isLoggedIn && setDependencyDialogOpen(true)}
-                      >
-                        <div className="flex items-start gap-1.5">
-                          <Link />
-                          <div className="flex items-center gap-1">
-                            <span>Dieser Comic basiert auf:
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className={`${isLoggedIn ? 'text-blue-400 hover:text-blue-300 cursor-help' : 'text-blue-400'}`}>
-                                    {wishlistItems.find(item => item.url === comicData.dependencyUrl)?.name || comicData.dependencyUrl}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{isLoggedIn ? 'Klicken Sie, um das abhängige Comic zu öffnen' : 'Abhängiges Comic'}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : isLoggedIn && (
-                      <div 
-                        className="w-full mt-2 flex justify-center"
-                        onClick={() => {
-                          setDependencyDialogOpen(true);
-                        }}
-                      >
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="bg-gray-700 hover:bg-blue-800 border-none text-gray-300 text-xs py-1 h-7"
-                        >
-                          <Link />
-                          Abhängigkeit hinzufügen
-                        </Button>
-                      </div>
-                    )}
                   </>
+                ) : null}
+
+                {comicData.hasDependency ? (
+                  <div 
+                    className={`w-full mt-2 p-2 bg-blue-900/30 rounded-md border border-blue-800/50 text-gray-300 text-xs ${isLoggedIn ? 'cursor-pointer hover:bg-blue-900/50' : ''}`}
+                    onClick={() => isLoggedIn && setDependencyDialogOpen(true)}
+                  >
+                    <div className="flex items-start gap-1.5">
+                      <Link className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex items-center gap-1">
+                        <span>Dieser Comic basiert auf:
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-blue-400 hover:text-blue-300">
+                                {wishlistItems.find(item => item.url === comicData.dependencyUrl)?.name || comicData.dependencyUrl}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{isLoggedIn ? 'Klicken Sie, um die Abhängigkeit zu bearbeiten' : 'Abhängiges Comic'}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : isLoggedIn && (
+                  <div 
+                    className="w-full mt-2 flex justify-center"
+                    onClick={() => {
+                      setDependencyDialogOpen(true);
+                    }}
+                  >
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="bg-gray-700 hover:bg-blue-800 border-none text-gray-300 text-xs py-1 h-7"
+                    >
+                      <Link className="h-3 w-3 mr-1.5" />
+                      Abhängigkeit hinzufügen
+                    </Button>
+                  </div>
                 )}
                 
                 {comicData.fromCache && (
