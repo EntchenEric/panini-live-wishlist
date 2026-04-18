@@ -1,37 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma'
+import { NoteSchema, handleZodError } from '@/lib/validate'
+import { requireAuth } from '@/lib/auth'
+import { handleForbidden, handleDatabaseError } from '@/lib/error-handler'
 
-const prisma = new PrismaClient();
-
-export async function POST(req: NextRequest) {
+export const POST = requireAuth(async (req: NextRequest, session) => {
   try {
     const body = await req.json();
-    const { urlEnding, url, note } = body;
-    
-    if (!urlEnding || !url || note === undefined) {
-      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
+    const result = NoteSchema.safeParse(body);
+
+    if (!result.success) {
+      return handleZodError(result.error);
     }
-    
+
+    const { urlEnding, url, note } = result.data;
+
+    if (urlEnding !== session.urlEnding) {
+      return handleForbidden();
+    }
+
     const savedNote = await prisma.note.upsert({
-      where: {
-        urlEnding_url: {
-          urlEnding: urlEnding,
-          url: url
-        }
-      },
-      update: {
-        note: note
-      },
-      create: {
-        urlEnding: urlEnding,
-        url: url,
-        note: note
-      }
+      where: { urlEnding_url: { urlEnding, url } },
+      update: { note },
+      create: { urlEnding, url, note }
     });
-    
+
     return NextResponse.json({ success: true, note: savedNote.note }, { status: 200 });
   } catch (error) {
     console.error('Error saving note:', error);
-    return NextResponse.json({ error: 'Failed to save note' }, { status: 500 });
+    return handleDatabaseError();
   }
-} 
+});

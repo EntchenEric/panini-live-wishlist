@@ -1,9 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/loginForm";
 import { Separator } from "@/components/ui/separator";
-import { Trash, Key, Link, Book, ShieldAlert, Lock, ShieldQuestion } from "lucide-react";
+import { Book, ShieldAlert, Lock, ShieldQuestion } from "lucide-react";
 
 export default function Home() {
   return (
@@ -24,13 +23,12 @@ export default function Home() {
               <ShieldQuestion className="inline-block mr-2" /> Why This Exists
             </h2>
             <p className="text-gray-400">
-              Panini only allows you to share your wishlist via email, which isn’t live-updating.
+              Panini only allows you to share your wishlist via email, which isn&apos;t live-updating.
               I wanted a wishlist I can share with my family that always reflects my latest purchases.
-              This way, if I buy a comic myself, they won’t accidentally buy the same one as a gift.
+              This way, if I buy a comic myself, they won&apos;t accidentally buy the same one as a gift.
             </p>
           </div>
 
-          {/* Note about possible login delay */}
           <Alert className="mb-6 bg-yellow-800/80 p-5 rounded-2xl text-white border border-yellow-600 shadow-md">
             <AlertTitle className="text-white font-bold">
               <ShieldAlert className="inline-block mr-2" /> Login Delay Notice
@@ -49,7 +47,7 @@ export default function Home() {
             </AlertTitle>
             <AlertDescription className="text-gray-200">
               <span>
-                Your Panini password is stored in a way that allows us to see it. While encrypted, it’s not fully secure.
+                Your Panini password is stored in a way that allows us to see it. While encrypted, it&apos;s not fully secure.
                 <strong> Only use this if your Panini account has no sensitive payment data. </strong>
                 <br /><br />
                 <Lock className="inline-block mr-2" /> <strong>Note:</strong> We will <u>never</u> view your password or any other personal data.
@@ -63,26 +61,9 @@ export default function Home() {
 
           <Separator className="my-6 bg-gray-700" />
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
-            <Button
-              variant="destructive"
-              className="flex-1 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:bg-red-600"
-            >
-              <Trash className="inline-block mr-2" /> Delete Account
-            </Button>
-            <Button
-              variant="secondary"
-              className="flex-1 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:bg-blue-600"
-            >
-              <Key className="inline-block mr-2" /> Change Password
-            </Button>
-            <Button
-              variant="secondary"
-              className="flex-1 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:bg-green-600"
-            >
-              <Link className="inline-block mr-2" /> Edit URL
-            </Button>
-          </div>
+          <p className="text-center text-gray-500 text-sm">
+            After logging in, you can manage your account settings including changing your password or deleting your account.
+          </p>
         </CardContent>
       </Card>
     </div>

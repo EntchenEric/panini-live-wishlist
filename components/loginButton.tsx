@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { UserRound, LogOut } from "lucide-react";
 import { toast } from 'react-toastify';
@@ -26,11 +26,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { BulkPriorityManager } from "@/components/BulkPriorityManager";
-import { useRouter } from "next/navigation";
+import { useWishlistEvents } from '@/lib/wishlist-events';
 
 const formSchema = z.object({
   email: z.string().min(2, "Your Email has to be at least 2 characters long.").max(50, "Your Email can't exceed 50 characters.").email("Please enter a valid Email."),
-  password: z.string().min(2, "Your Password has to be at least 2 characters long.").max(50, "Your Password can't exceed 50 characters."),
+  password: z.string().min(8, "Your Password has to be at least 8 characters long.").max(50, "Your Password can't exceed 50 characters.").regex(/[A-Z]/, "Must contain an uppercase letter").regex(/[a-z]/, "Must contain a lowercase letter").regex(/[0-9]/, "Must contain a digit").regex(/[^A-Za-z0-9]/, "Must contain a special character"),
   urlEnding: z.string().min(3, "Your wish URL Ending has to be at least 3 characters long.").max(50, "Your wish URL Ending can't exceed 50 characters."),
 });
 
@@ -42,11 +42,18 @@ type LoginSession = {
 export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { emit } = useWishlistEvents();
   const [loginSession, setLoginSession] = useState<LoginSession>({
     isLoggedIn: false,
     urlEnding: ''
   });
-  const router = useRouter();
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+    };
+  }, []);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -58,22 +65,21 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
   });
 
   useEffect(() => {
-    const checkLoginStatus = () => {
-      const savedSession = localStorage.getItem('loginSession');
-      if (savedSession) {
-        try {
-          const session = JSON.parse(savedSession) as LoginSession;
-          if (session.isLoggedIn && session.urlEnding === currentUrlEnding) {
-            setLoginSession(session);
+    const checkSession = async () => {
+      try {
+        const response = await fetch('/api/session');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated && data.urlEnding === currentUrlEnding) {
+            setLoginSession({ isLoggedIn: true, urlEnding: data.urlEnding });
           }
-        } catch (error) {
-          console.error('Error parsing login session:', error);
-          localStorage.removeItem('loginSession');
         }
+      } catch {
+        // Not authenticated
       }
     };
-    
-    checkLoginStatus();
+
+    checkSession();
   }, [currentUrlEnding]);
 
   const handleLogin = async (values: z.infer<typeof formSchema>) => {
@@ -81,28 +87,21 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
     try {
       const response = await fetch('/api/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        const session = {
-          isLoggedIn: true,
-          urlEnding: values.urlEnding,
-        };
-        localStorage.setItem('loginSession', JSON.stringify(session));
-        setLoginSession(session);
+        setLoginSession({ isLoggedIn: true, urlEnding: values.urlEnding });
         setDialogOpen(false);
         toast.success('Login successful! Reloading page...', {
           position: "top-right",
           autoClose: 2000,
         });
-        
-        setTimeout(() => {
+
+        reloadTimerRef.current = setTimeout(() => {
           window.location.reload();
         }, 1500);
       } else {
@@ -122,18 +121,19 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('loginSession');
-    setLoginSession({
-      isLoggedIn: false,
-      urlEnding: ''
-    });
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST' });
+    } catch {
+      // Continue with client-side logout even if API call fails
+    }
+    setLoginSession({ isLoggedIn: false, urlEnding: '' });
     toast.info('You have been logged out. Reloading page...', {
       position: "top-right",
       autoClose: 2000,
     });
-    
-    setTimeout(() => {
+
+    reloadTimerRef.current = setTimeout(() => {
       window.location.reload();
     }, 1500);
   };
@@ -143,15 +143,15 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
       {loginSession.isLoggedIn ? (
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-300">Logged in</span>
-          <BulkPriorityManager 
+          <BulkPriorityManager
             urlEnding={currentUrlEnding}
             onPrioritiesChanged={() => {
-              window.dispatchEvent(new CustomEvent('prioritiesUpdated'));
-            }} 
+              emit('prioritiesUpdated');
+            }}
           />
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="bg-gray-800 hover:bg-gray-700 text-white border-gray-700"
             onClick={handleLogout}
           >
@@ -162,9 +162,9 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
       ) : (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="bg-indigo-600 hover:bg-indigo-700 text-white border-none"
             >
               <UserRound className="h-4 w-4 mr-2" />
@@ -188,9 +188,9 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
                     <FormItem>
                       <FormLabel className="text-gray-200">Email</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="your@email.com" 
-                          {...field} 
+                        <Input
+                          placeholder="your@email.com"
+                          {...field}
                           className="bg-gray-700 border-gray-600 text-white"
                         />
                       </FormControl>
@@ -206,10 +206,10 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
                     <FormItem>
                       <FormLabel className="text-gray-200">Password</FormLabel>
                       <FormControl>
-                        <Input 
+                        <Input
                           type="password"
-                          placeholder="Your password" 
-                          {...field} 
+                          placeholder="Your password"
+                          {...field}
                           className="bg-gray-700 border-gray-600 text-white"
                         />
                       </FormControl>
@@ -225,8 +225,8 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
                     <FormItem>
                       <FormLabel className="text-gray-200">URL Ending</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="wishlist" 
+                        <Input
+                          placeholder="wishlist"
                           {...field}
                           disabled={true}
                           className="bg-gray-700 border-gray-600 text-white"
@@ -238,8 +238,8 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
                 />
 
                 <DialogFooter className="pt-4">
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     disabled={loading}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white"
                   >
@@ -253,4 +253,4 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
       )}
     </>
   );
-} 
+}

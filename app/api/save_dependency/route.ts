@@ -1,37 +1,33 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma'
+import { DependencySchema, handleZodError } from '@/lib/validate'
+import { requireAuth } from '@/lib/auth'
+import { handleForbidden, handleDatabaseError } from '@/lib/error-handler'
 
-const prisma = new PrismaClient();
-
-export async function POST(request: Request) {
+export const POST = requireAuth(async (req: NextRequest, session) => {
   try {
-    const body = await request.json();
-    const { urlEnding, url, dependencyUrl } = body;
+    const body = await req.json();
+    const result = DependencySchema.safeParse(body);
 
-    if (!urlEnding || !url || !dependencyUrl) {
-      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
+    if (!result.success) {
+      return handleZodError(result.error);
+    }
+
+    const { urlEnding, url, dependencyUrl } = result.data;
+
+    if (urlEnding !== session.urlEnding) {
+      return handleForbidden();
     }
 
     const dependency = await prisma.dependency.upsert({
-      where: {
-        urlEnding_url: {
-          urlEnding,
-          url,
-        },
-      },
-      update: {
-        dependencyUrl,
-      },
-      create: {
-        urlEnding,
-        url,
-        dependencyUrl,
-      },
+      where: { urlEnding_url: { urlEnding, url } },
+      update: { dependencyUrl },
+      create: { urlEnding, url, dependencyUrl }
     });
 
-    return NextResponse.json({ dependency });
+    return NextResponse.json({ dependency }, { status: 200 });
   } catch (error) {
     console.error('Error saving dependency:', error);
-    return NextResponse.json({ error: 'Failed to save dependency' }, { status: 500 });
+    return handleDatabaseError();
   }
-} 
+});

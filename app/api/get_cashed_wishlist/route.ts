@@ -1,55 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-import * as zlib from 'zlib'
+import { prisma } from '@/lib/prisma'
+import { promisify } from 'util';
+import zlib from 'zlib';
+import { requireAuth } from '@/lib/auth'
+import { handleForbidden, handleNotFound, handleDatabaseError } from '@/lib/error-handler'
 
-const prisma = new PrismaClient()
+const gunzip = promisify(zlib.gunzip);
 
-type ResponseData = {
-    message: string
-}
-
-export async function GET(req: NextRequest) {
+export const GET = requireAuth(async (req: NextRequest, session) => {
     const urlEnding = req.nextUrl.searchParams.get('urlEnding')
 
-    const backendUrl: string | undefined = process.env.BACKEND_URL;
-
     if (!urlEnding) {
-        return new NextResponse(
-            JSON.stringify({ message: 'urlEnding not provided.' }),
-            { status: 500 }
-        );
+        return NextResponse.json({ message: 'urlEnding not provided.' }, { status: 400 });
     }
 
-    const urlEndingStr = Array.isArray(urlEnding) ? urlEnding[0] : urlEnding;
+    if (urlEnding !== session.urlEnding) {
+        return handleForbidden();
+    }
 
     try {
-        const cash = await prisma.cashedWishlist.findUnique({
-            where: {
-                urlEnding: urlEndingStr,
-            },
-            select: {
-                cash: true
-            }
+        const cash = await prisma.cachedWishlist.findUnique({
+            where: { urlEnding },
+            select: { cash: true }
         });
 
         if (!cash) {
-            return new NextResponse(
-                JSON.stringify({ message: 'No cash found.' }),
-                { status: 409 }
-            );
+            return handleNotFound();
         }
 
-        const decompressedData = zlib.gunzipSync(cash.cash).toString();
+        const decompressedData = (await gunzip(cash.cash)).toString();
 
-        return new NextResponse(
-            JSON.stringify({ message: 'Cashed Wishlist successfully fetched.', cash: JSON.parse(decompressedData) }),
-            { status: 201 }
-        );
+        return NextResponse.json({ message: 'Cached wishlist fetched.', cash: JSON.parse(decompressedData) }, { status: 200 });
     } catch (err) {
-        console.error('Error querying the database:', err);
-        return new NextResponse(
-            JSON.stringify({ message: 'Error querying the database.' }),
-            { status: 500 }
-        );
+        console.error('Error fetching cached wishlist:', err);
+        return handleDatabaseError();
     }
-}
+});

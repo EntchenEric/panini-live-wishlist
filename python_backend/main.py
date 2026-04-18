@@ -10,59 +10,123 @@ import os
 from get_comic_information import get_information
 import threading
 import time
-from functools import lru_cache
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from time import sleep
-from bs4 import BeautifulSoup
+from typing import Any
 
 load_dotenv()
 
 port = os.getenv('BACKEND_PORT')
+flask_api_key = os.getenv('FLASK_API_KEY')
 
 app = Flask(__name__)
-CORS(app)
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1MB
 
-comic_cache = {}
-comic_cache_lock = threading.Lock()
+frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+CORS(app, origins=[frontend_url])
 
-@lru_cache(maxsize=100)
-def cached_get_information(url):
-    return get_information(url)
+# Thread-safe rate limiting for /get_shared_wishlist
+_rate_limit_lock = threading.Lock()
+_shared_wishlist_attempts: dict[str, list[float]] = {}
+_SHARED_WISHLIST_RATE_LIMIT = 10
+_SHARED_WISHLIST_RATE_WINDOW = 60
+
+# Thread-safe comic cache with size limit
+_cache_lock = threading.Lock()
+comic_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+CACHE_MAX_ENTRIES = 500
+CACHE_TTL_SECONDS = 86400  # 24 hours
+
+
+def _check_rate_limit(client_ip: str) -> bool:
+    with _rate_limit_lock:
+        now = time.time()
+        attempts = _shared_wishlist_attempts.get(client_ip, [])
+        attempts = [t for t in attempts if now - t < _SHARED_WISHLIST_RATE_WINDOW]
+        if len(attempts) >= _SHARED_WISHLIST_RATE_LIMIT:
+            _shared_wishlist_attempts[client_ip] = attempts
+            return False
+        attempts.append(now)
+        _shared_wishlist_attempts[client_ip] = attempts
+        return True
+
+
+def _get_cached_comic(url: str) -> dict[str, Any] | None:
+    with _cache_lock:
+        if url in comic_cache:
+            cache_time, cache_data = comic_cache[url]
+            if time.time() - cache_time < CACHE_TTL_SECONDS:
+                return cache_data
+            del comic_cache[url]
+    return None
+
+
+def _set_cached_comic(url: str, data: dict[str, Any]) -> None:
+    with _cache_lock:
+        # Evict oldest entries if cache is full
+        if len(comic_cache) >= CACHE_MAX_ENTRIES:
+            sorted_entries = sorted(comic_cache.items(), key=lambda x: x[1][0])
+            for key, _ in sorted_entries[: len(comic_cache) - CACHE_MAX_ENTRIES + 50]:
+                del comic_cache[key]
+        comic_cache[url] = (time.time(), data)
+
+
+def _validate_json_body(required_fields: list[str]) -> tuple[dict[str, Any] | None, str | None]:
+    data = request.json
+    if not data:
+        return None, "Request body must be JSON"
+    for field in required_fields:
+        if not data.get(field):
+            return None, f"{field} is required"
+    return data, None
+
+
+@app.before_request
+def verify_api_key() -> tuple[str, int] | None:
+    if not flask_api_key:
+        return jsonify({"error": "Server configuration error: API key not set"}), 500
+    if request.headers.get('X-API-Key') != flask_api_key:
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
+
+
+@app.after_request
+def add_security_headers(response: Any) -> Any:
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
+    return response
+
 
 @app.route('/test_account', methods=['POST'])
-def login():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
+def login() -> tuple[str, int]:
+    data, error = _validate_json_body(['email', 'password'])
+    if error:
+        return jsonify({"error": error}), 400
 
-    email = decrypt_string(email)
-    password = decrypt_string(password)
+    email = decrypt_string(data['email'])
+    password = decrypt_string(data['password'])
 
     if not email or not password:
-        print("returing 400")
         return jsonify({"error": "Email and password are required"}), 400
 
     try:
         result = handle_login(email, password)
-        print(result)
         if result == "Login failed":
             return jsonify({"message": "Login failed"}), 400
         return jsonify({"message": "Login successful"}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"Error in login: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
+
 
 @app.route('/send_wishlist', methods=['POST'])
-def send_wishlist_api():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
+def send_wishlist_api() -> tuple[str, int]:
+    data, error = _validate_json_body(['email', 'password'])
+    if error:
+        return jsonify({"error": error}), 400
 
-    email = decrypt_string(email)
-    password = decrypt_string(password)
+    email = decrypt_string(data['email'])
+    password = decrypt_string(data['password'])
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
@@ -71,21 +135,24 @@ def send_wishlist_api():
         result = send_wishlist(email, password)
         if result == "Login failed":
             return jsonify({"message": "Login failed"}), 400
-        return jsonify({"message": "Wishlist send successfull"}), 200
+        return jsonify({"message": "Wishlist send successful"}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-@app.route('/get_wishlist', methods=['POST'])
-def get_wishlist_api():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
+        app.logger.error(f"Error in send_wishlist: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
 
-    email = decrypt_string(email)
-    password = decrypt_string(password) if password else None
+
+@app.route('/get_wishlist', methods=['POST'])
+def get_wishlist_api() -> tuple[str, int]:
+    data, error = _validate_json_body(['email'])
+    if error:
+        return jsonify({"error": error}), 400
+
+    email = decrypt_string(data['email'])
+    password = decrypt_string(data.get('password', '')) if data.get('password') else None
 
     if not email:
         return jsonify({"error": "Email is required"}), 400
+
     try:
         if password:
             result = get_wishlist(email, password)
@@ -93,71 +160,59 @@ def get_wishlist_api():
             result = get_wishlist(email)
         return jsonify({"message": "Got Wishlist successfully", "result": json.dumps(result)}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"Error in get_wishlist: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
 
-    
+
 @app.route('/get_wishlist_complete', methods=['POST'])
-def get_wishlist_complete_api():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
+def get_wishlist_complete_api() -> tuple[str, int]:
+    data, error = _validate_json_body(['email', 'password'])
+    if error:
+        return jsonify({"error": error}), 400
 
-    email = decrypt_string(email)
-    password = decrypt_string(password)
+    email = decrypt_string(data['email'])
+    password = decrypt_string(data['password'])
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
     try:
-        print(f"Getting wishlist for {email} using direct authentication...")
         result = get_wishlist(email, password)
         return jsonify({"message": "Got Wishlist successfully", "result": json.dumps(result)}), 200
     except Exception as e:
-        print(f"Error in get_wishlist_complete_api: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"Error in get_wishlist_complete: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
+
 
 @app.route('/get_comic_information', methods=['POST'])
-def get_comic_information_route():
-    data = request.json
-    url = data.get('url')
+def get_comic_information_route() -> tuple[str, int]:
+    data, error = _validate_json_body(['url'])
+    if error:
+        return jsonify({"error": error}), 400
 
-    if not url:
-        return jsonify({"error": "URL is required"}), 400
+    url: str = data['url'].strip().lower()
+    if not url.startswith('http'):
+        url = 'https://' + url
 
-    normalized_url = url.strip().lower()
-    if not normalized_url.startswith('http'):
-        normalized_url = 'https://' + normalized_url
-
-    with comic_cache_lock:
-        if normalized_url in comic_cache:
-            cache_time, cache_data = comic_cache[normalized_url]
-            if time.time() - cache_time < 86400:  # 24 hours
-                print(f"Returning cached data for URL: {normalized_url}")
-                return jsonify({"message": "Comic information fetched from cache", "result": cache_data}), 200
-            else:
-                print(f"Cache expired for URL: {normalized_url}")
+    cached = _get_cached_comic(url)
+    if cached is not None:
+        return jsonify({"message": "Comic information fetched from cache", "result": cached}), 200
 
     try:
-        print(f"Fetching fresh data for URL: {normalized_url}")
-        result = get_information(normalized_url)
-        
-        if isinstance(result, str) and "failed" in result:
-            print(f"Fetch failed: {result}")
-            return jsonify({"error": result}), 400
-        
-        with comic_cache_lock:
-            comic_cache[normalized_url] = (time.time(), result)
-            print(f"Stored new data in cache for URL: {normalized_url}")
-            
+        result = get_information(url)
+
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"error": result["error"]}), 400
+
+        _set_cached_comic(url, result)
         return jsonify({"message": "Comic information fetched successfully", "result": result}), 200
     except Exception as e:
-        print(f"Error fetching comic information: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"Error fetching comic information: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
+
 
 @app.route('/get_comic_information_api', methods=['GET', 'POST'])
-def get_comic_information_api():
+def get_comic_information_api() -> tuple[str, int]:
     if request.method == 'POST':
         data = request.json
         url = data.get('url') if data else None
@@ -167,110 +222,83 @@ def get_comic_information_api():
             try:
                 import urllib.parse
                 url = urllib.parse.unquote(url)
-                print(f"Decoded URL parameter: {url}")
-            except Exception as e:
-                print(f"Error decoding URL: {e}")
+            except Exception:
+                pass
 
     if not url:
-        print("Error: No URL provided to get_comic_information_api")
         return jsonify({"error": "URL is required"}), 400
 
-    print(f"Received request for URL: {url}")
-    
+    url = url.strip().lower()
+    if not url.startswith('http'):
+        url = 'https://' + url
+
+    cached = _get_cached_comic(url)
+    if cached is not None:
+        return jsonify({"message": "Comic information fetched from cache", "result": cached}), 200
+
     try:
-        normalized_url = url.strip().lower()
-        if not normalized_url.startswith('http'):
-            normalized_url = 'https://' + normalized_url
-            print(f"Normalized URL to: {normalized_url}")
+        result = get_information(url)
 
-        with comic_cache_lock:
-            if normalized_url in comic_cache:
-                cache_time, cache_data = comic_cache[normalized_url]
-                if time.time() - cache_time < 86400:  
-                    print(f"Returning cached data for URL: {normalized_url}")
-                    return jsonify({"message": "Comic information fetched from cache", "result": cache_data}), 200
-                else:
-                    print(f"Cache expired for URL: {normalized_url}")
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"error": result["error"]}), 400
 
-        print(f"Fetching fresh data for URL: {normalized_url}")
-        result = get_information(normalized_url)
-        
-        if isinstance(result, str) and "failed" in result:
-            print(f"Fetch failed: {result}")
-            return jsonify({"error": result}), 400
-        
         if isinstance(result, str):
             try:
                 result = json.loads(result)
             except json.JSONDecodeError:
-                print(f"Result is not valid JSON: {result}")
-        
-        with comic_cache_lock:
-            comic_cache[normalized_url] = (time.time(), result)
-            print(f"Stored new data in cache for URL: {normalized_url}")
-            
+                pass
+
+        _set_cached_comic(url, result)
         return jsonify({"message": "Comic information fetched successfully", "result": result}), 200
     except Exception as e:
-        error_message = str(e)
-        print(f"Error fetching comic information: {error_message}")
-        return jsonify({"error": error_message}), 500
+        app.logger.error(f"Error fetching comic information: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
+
 
 @app.route('/get_comic_information_api/<path:subpath>', methods=['GET', 'POST'])
 @app.route('/get_comic_information/<path:subpath>', methods=['GET', 'POST'])
-def get_comic_information_wildcard(subpath=None):
-    print(f"Wildcard comic information route hit with subpath: {subpath}")
+def get_comic_information_wildcard(subpath: str | None = None) -> tuple[str, int]:
     if 'api' in request.path:
         return get_comic_information_api()
     else:
         return get_comic_information_route()
 
+
 @app.route('/get_shared_wishlist', methods=['GET'])
-def get_shared_wishlist_api():
+def get_shared_wishlist_api() -> tuple[str, int]:
+    client_ip = request.remote_addr or 'unknown'
+
+    if not _check_rate_limit(client_ip):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
     try:
-        print("Handling shared wishlist request...")
-        
-        # Get credentials from environment variables
         shared_email = os.getenv("SHARED_EMAIL")
         shared_password = os.getenv("SHARED_PASSWORD")
-        
+
         if not shared_email or not shared_password:
-            print("Shared credentials not properly configured. Check SHARED_EMAIL and SHARED_PASSWORD in .env")
             return jsonify({"error": "Shared wishlist access not configured"}), 500
-            
-        # Get the wishlist using the shared account credentials
-        print(f"Getting wishlist with shared account credentials...")
+
         result = get_wishlist(shared_email, shared_password)
-        
-        # Override the message to be generic
+
         if result.get("data"):
             result["message"] = "Shared Wishlist"
-            
+
         return jsonify({"message": "Got shared wishlist successfully", "result": json.dumps(result)}), 200
     except Exception as e:
-        print(f"Error getting shared wishlist: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"Error getting shared wishlist: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
+
 
 if __name__ == '__main__':
     print("Available routes:")
     for rule in app.url_map.iter_rules():
         print(f"  {rule.endpoint}: {rule.methods} - {rule.rule}")
-    
+
     @app.errorhandler(404)
-    def not_found(e):
+    def not_found(e: Exception) -> tuple[str, int]:
         if request.path.startswith('/get_comic_information'):
-            print(f"404 Error for comic information request: {request.path} - {request.query_string}")
-            url = request.args.get('url')
-            if url:
-                if request.method == 'GET':
-                    print(f"Redirecting to get_comic_information_api with URL: {url}")
-                    return get_comic_information_api()
-                else:
-                    print(f"Redirecting to get_comic_information_route with URL: {url}")
-                    return get_comic_information_route()
-            
-        print(f"404 Error: {request.path} - Method: {request.method}")
-        return jsonify({"error": f"Route not found: {request.path}"}), 404
-    
+            return get_comic_information_api()
+
+        return jsonify({"error": "Not found"}), 404
+
     app.run(debug=False, port=port)

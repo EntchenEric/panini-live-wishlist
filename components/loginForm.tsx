@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation"
 
 const formSchema = z.object({
     email: z.string().min(2, "Your Email has to be at least 2 characters long.").max(50, "Your Email can't exeed 50 characters.").email("Please enter a valid Email."),
-    password: z.string().min(2, "Your Password has to be at least 2 characters long.").max(50, "Your Password can't exeed 50 cahracters."),
+    password: z.string().min(8, "Your Password has to be at least 8 characters long.").max(50, "Your Password can't exceed 50 characters.").regex(/[A-Z]/, "Must contain an uppercase letter").regex(/[a-z]/, "Must contain a lowercase letter").regex(/[0-9]/, "Must contain a digit").regex(/[^A-Za-z0-9]/, "Must contain a special character"),
     urlEnding: z.string().min(3, "Your wish URL Ending has to be at least 3 characters long.").max(50, "Your wish URL Ending can't exeed 50 characters."),
 })
 
@@ -38,11 +38,12 @@ export function LoginForm() {
 
     const createUser = async (email: string, password: string, urlEnding: string) => {
         try {
-            const response = await fetch("/api/create_user?email=" + email + "&password=" + password + "&urlEnding=" + urlEnding, {
-                method: "GET",
+            const response = await fetch("/api/create_user", {
+                method: "POST",
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({ email, password, urlEnding }),
             })
 
             const data = await response.json()
@@ -52,7 +53,7 @@ export function LoginForm() {
             } else {
                 setErrorMessage(data.message || "Something went wrong.")
             }
-        } catch (error) {
+        } catch {
             setErrorMessage("An unexpected error occurred.")
         }
     }
@@ -95,9 +96,10 @@ export function LoginForm() {
                                 Password
                             </FormLabel>
                             <FormControl>
-                                <Input 
-                                    placeholder="password123" 
-                                    {...field} 
+                                <Input
+                                    type="password"
+                                    placeholder="password123"
+                                    {...field}
                                     className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:bg-gray-800 text-white selection:bg-blue-500 selection:text-white"
                                 />
                             </FormControl>
@@ -124,14 +126,14 @@ export function LoginForm() {
                                 />
                             </FormControl>
                             <FormDescription>
-                                The URL Ending you wish to have. This will be panini.entcheneric.com/[urlEnding]
+                                The URL Ending you wish to have. This will be {process.env.NEXT_PUBLIC_APP_DOMAIN || 'panini.entcheneric.com'}/[urlEnding]
                             </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )} />
 
                 {errorMessage && (
-                    <div className="text-red-500 mt-4">{errorMessage}</div>
+                    <div role="alert" className="text-red-500 mt-4">{errorMessage}</div>
                 )}
 
                 <Button 

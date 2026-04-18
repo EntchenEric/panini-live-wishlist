@@ -1,77 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { PrioritySchema, handleZodError } from '@/lib/validate'
+import { requireAuth } from '@/lib/auth'
+import { handleForbidden, handleDatabaseError } from '@/lib/error-handler'
 
-const prisma = new PrismaClient()
-
-export async function POST(req: NextRequest) {
+export const POST = requireAuth(async (req: NextRequest, session) => {
     try {
         const body = await req.json();
-        const { urlEnding, url, priority } = body;
+        const result = PrioritySchema.safeParse(body);
 
-        if (!urlEnding || !url || priority === undefined) {
-            return new NextResponse(
-                JSON.stringify({ message: 'urlEnding, url, or priority not provided.' }),
-                { status: 400 }
-            );
+        if (!result.success) {
+            return handleZodError(result.error);
         }
 
-        const priorityNumber = Number(priority);
-        if (isNaN(priorityNumber) || priorityNumber < 1 || priorityNumber > 10) {
-            return new NextResponse(
-                JSON.stringify({ message: 'Priority must be a number between 1 and 10.' }),
-                { status: 400 }
-            );
+        const { urlEnding, url, priority } = result.data;
+
+        if (urlEnding !== session.urlEnding) {
+            return handleForbidden();
         }
 
-        const existingPriority = await prisma.prioritys.findUnique({
-            where: {
-                urlEnding_url: {
-                    urlEnding: urlEnding,
-                    url: url
-                }
-            }
+        await prisma.priorities.upsert({
+            where: { urlEnding_url: { urlEnding, url } },
+            update: { priority },
+            create: { urlEnding, url, priority }
         });
 
-        if (existingPriority) {
-            await prisma.prioritys.update({
-                where: {
-                    urlEnding_url: {
-                        urlEnding: urlEnding,
-                        url: url
-                    }
-                },
-                data: {
-                    priority: priorityNumber
-                }
-            });
-        } else {
-            await prisma.prioritys.create({
-                data: {
-                    urlEnding: urlEnding,
-                    url: url,
-                    priority: priorityNumber
-                }
-            });
-        }
-
-        return new NextResponse(
-            JSON.stringify({ 
-                message: "Priority set successfully",
-                success: true,
-                urlEnding: urlEnding,
-                url: url,
-                priority: priorityNumber
-            }),
-            { status: 200 }
-        );
+        return NextResponse.json({
+            message: "Priority set successfully",
+            success: true,
+            urlEnding,
+            url,
+            priority
+        }, { status: 200 });
     } catch (error) {
         console.error('Error setting priority:', error);
-        return new NextResponse(
-            JSON.stringify({ 
-                message: 'An error occurred while setting the priority.',
-                error: String(error)
-            }),
-            { status: 500 }
-        );
+        return handleDatabaseError();
     }
-} 
+});

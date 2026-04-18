@@ -14,61 +14,89 @@ datasource db {
 }
 
 model accountData {
-  email     String @unique
-  password  String
-  urlEnding String @unique
+  email                   String @unique
+  password                String
+  urlEnding               String @unique
+  encryptedPaniniPassword String?
+  tokenVersion            Int    @default(0)
+  loginAttempts           Int    @default(0)
+  lockedUntil             DateTime?
+  deletedAt               DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }
 
-model cashedWishlist {
-  urlEnding   String   @unique
-  cash        Bytes
+/// @relation(fields: [urlEnding], references: [urlEnding], onDelete: Cascade)
+model cachedWishlist {
+  urlEnding String   @unique
+  cash      Bytes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cashedWishlist")
 }
 
-model cashedComicData {
-  url        String @unique
-  price      String
-  author     String
-  drawer     String
-  release    String
-  type       String
-  pageAmount String
-  storys     String @db.Text
-  binding    String
-  ISBN       String
-  deliverableTo String
-  deliveryFrom String
-  articleNumber String? @default("")
-  format     String? @default("")
-  color      String? @default("")
-  name       String @default("Unknown Comic")
-  lastUpdated DateTime @default(now())
+model cachedComicData {
+  url            String @unique
+  price          String
+  author         String
+  drawer         String
+  release        String
+  type           String
+  pageAmount     String
+  stories        String @map("storys") @db.Text
+  binding        String
+  ISBN           String
+  deliverableTo  String
+  deliveryFrom   String
+  articleNumber  String? @default("")
+  format         String? @default("")
+  color          String? @default("")
+  name           String @default("Unknown Comic")
+  lastUpdated    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([lastUpdated])
+  @@map("cashedComicData")
 }
 
 model nameNumberMap {
-  name    String
-  url     String @unique
+  name      String   @default("Unknown")
+  url       String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model prioritys {
+model priorities {
   urlEnding String
   url       String
   priority  Int
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([urlEnding, url], name: "urlEnding_url")
+  @@index([urlEnding])
+  @@map("prioritys")
 }
 
 model note {
   urlEnding String
   url      String
   note     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([urlEnding, url], name: "urlEnding_url")
+  @@index([urlEnding])
 }
 
 model dependency {
   urlEnding String
   url      String
   dependencyUrl String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([urlEnding, url], name: "urlEnding_url")
+  @@index([urlEnding])
 }

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useWishlistEvents } from '@/lib/wishlist-events';
+import Image from 'next/image';
 import { Star, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,68 +42,48 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const { emit } = useWishlistEvents();
   const [searchTerm, setSearchTerm] = useState('');
   const [priorities, setPriorities] = useState<Record<string, number>>({});
   const [initialPriorityCount, setInitialPriorityCount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const initialPrioritiesRef = useRef<Record<string, number>>({});
-  
-  useEffect(() => {
-    if (open) {
-      fetchWishlistItems();
+
+  const checkForUnsavedChanges = () => {
+    const initialKeys = Object.keys(initialPrioritiesRef.current);
+    const currentKeys = Object.keys(priorities);
+
+    if (initialKeys.length !== currentKeys.length) {
+      setHasUnsavedChanges(true);
+      return;
     }
-  }, [open]);
-  
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredItems(items);
-    } else {
-      const lowercasedSearch = searchTerm.toLowerCase();
-      setFilteredItems(
-        items.filter(item => 
-          item.name.toLowerCase().includes(lowercasedSearch)
-        )
-      );
-    }
-  }, [searchTerm, items]);
-  
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (open && hasUnsavedChanges) {
-        const message = 'You have unsaved priority changes. Are you sure you want to leave?';
-        event.returnValue = message;
-        return message;
+
+    for (const key of initialKeys) {
+      if (initialPrioritiesRef.current[key] !== priorities[key]) {
+        setHasUnsavedChanges(true);
+        return;
       }
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [open, hasUnsavedChanges]);
-  
-  useEffect(() => {
-    if (open) {
-      checkForUnsavedChanges();
     }
-  }, [priorities, open]);
-  
-  const fetchWishlistItems = async () => {
+
+    setHasUnsavedChanges(false);
+  };
+
+  const fetchWishlistItems = useCallback(async () => {
     setLoading(true);
     try {
       const wishlistResponse = await fetch(`/api/get_cashed_wishlist?urlEnding=${urlEnding}`);
       if (!wishlistResponse.ok) {
         throw new Error('Failed to fetch wishlist');
       }
-      
-      const wishlistData = await wishlistResponse.json();
+
+      const wishlistResponseData = await wishlistResponse.json();
       let parsedWishlist;
-      if (typeof wishlistData.cash === 'string') {
-        parsedWishlist = JSON.parse(wishlistData.cash);
+      const cachedData = wishlistResponseData.cash;
+      if (typeof cachedData === 'string') {
+        parsedWishlist = JSON.parse(cachedData);
       } else {
-        parsedWishlist = wishlistData.cash;
+        parsedWishlist = cachedData;
       }
       
       const prioritiesResponse = await fetch(`/api/get_priorities?urlEnding=${urlEnding}`);
@@ -123,7 +105,7 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
       setInitialPriorityCount(Object.keys(priorityMap).length);
       setHasUnsavedChanges(false);
       
-      const mappedItems = parsedWishlist.data.map((item: any) => ({
+      const mappedItems = parsedWishlist.data.map((item: { link: string; name: string; image: string }) => ({
         url: item.link,
         name: item.name,
         image: item.image,
@@ -140,8 +122,8 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
     } finally {
       setLoading(false);
     }
-  };
-  
+  }, [urlEnding]);
+
   const handlePriorityChange = (url: string, value: number | null) => {
     setPriorities(prev => {
       const updated = { ...prev };
@@ -155,33 +137,7 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
       return updated;
     });
   };
-  
-  const checkForUnsavedChanges = () => {
-    const initialKeys = Object.keys(initialPrioritiesRef.current);
-    const currentKeys = Object.keys(priorities);
-    
-    if (initialKeys.length !== currentKeys.length) {
-      setHasUnsavedChanges(true);
-      return;
-    }
-    
-    for (const key of initialKeys) {
-      if (initialPrioritiesRef.current[key] !== priorities[key]) {
-        setHasUnsavedChanges(true);
-        return;
-      }
-    }
-    
-    for (const key of currentKeys) {
-      if (!initialKeys.includes(key)) {
-        setHasUnsavedChanges(true);
-        return;
-      }
-    }
-    
-    setHasUnsavedChanges(false);
-  };
-  
+
   const handleDialogChange = (newOpen: boolean) => {
     if (open && !newOpen && hasUnsavedChanges) {
       if (confirm('You have unsaved priority changes. Are you sure you want to close?')) {
@@ -193,6 +149,45 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
       setOpen(newOpen);
     }
   };
+
+  useEffect(() => {
+    if (open) {
+      fetchWishlistItems();
+    }
+  }, [open, fetchWishlistItems]);
+
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredItems(items);
+    } else {
+      const lowercasedSearch = searchTerm.toLowerCase();
+      setFilteredItems(
+        items.filter(item =>
+          item.name.toLowerCase().includes(lowercasedSearch)
+        )
+      );
+    }
+  }, [searchTerm, items]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (open && hasUnsavedChanges) {
+        const message = 'You have unsaved priority changes. Are you sure you want to leave?';
+        event.returnValue = message;
+        return message;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [open, hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (open) {
+      checkForUnsavedChanges();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priorities, open]);
   
   const saveAllPriorities = async () => {
     setSaving(true);
@@ -240,7 +235,7 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
         onPrioritiesChanged();
         
         if (isFirstTimePriority) {
-          window.dispatchEvent(new CustomEvent('firstPriorityAdded'));
+          emit('firstPriorityAdded');
         }
         
         initialPrioritiesRef.current = { ...priorities };
@@ -300,6 +295,7 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
             className="pl-8 bg-gray-700 border-gray-600 text-white"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Search wishlist items"
           />
           {searchTerm && (
             <Button
@@ -339,11 +335,13 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
                       <TableCell className="text-gray-400">{index + 1}</TableCell>
                       <TableCell className="py-2 font-medium text-gray-200">
                         <div className="flex items-center">
-                          <img 
-                            src={item.image} 
-                            alt={item.name} 
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            width={32}
+                            height={48}
                             className="w-8 h-12 object-cover rounded-sm mr-3 bg-gray-700"
-                            onError={(e) => (e.currentTarget.src = "https://via.placeholder.com/80x120?text=No+Image")}
+                            unoptimized
                           />
                           <div className="truncate max-w-[280px]">{item.name}</div>
                         </div>
@@ -355,6 +353,7 @@ export function BulkPriorityManager({ urlEnding, onPrioritiesChanged }: BulkPrio
                             const value = e.target.value;
                             handlePriorityChange(item.url, value ? parseInt(value) : null);
                           }}
+                          aria-label={`Priority for ${item.name}`}
                           className="w-full px-2 py-1 rounded-md bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                           <option value="">Not set</option>

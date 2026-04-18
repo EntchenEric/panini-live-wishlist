@@ -1,31 +1,29 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth'
+import { handleForbidden, handleDatabaseError } from '@/lib/error-handler'
 
-const prisma = new PrismaClient();
-
-export async function GET(request: Request) {
+export const GET = requireAuth(async (req: NextRequest, session) => {
   try {
-    const { searchParams } = new URL(request.url);
-    const urlEnding = searchParams.get('urlEnding');
-    const url = searchParams.get('url');
+    const urlEnding = req.nextUrl.searchParams.get('urlEnding');
+    const url = req.nextUrl.searchParams.get('url');
 
     if (!urlEnding || !url) {
-      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
+      return NextResponse.json({ message: 'Missing required parameters.' }, { status: 400 });
+    }
+
+    if (urlEnding !== session.urlEnding) {
+      return handleForbidden();
     }
 
     const dependencies = await prisma.dependency.findMany({
-      where: {
-        urlEnding,
-        url,
-      },
-      select: {
-        dependencyUrl: true,
-      },
+      where: { urlEnding, url },
+      select: { dependencyUrl: true }
     });
 
-    return NextResponse.json({ dependencies });
+    return NextResponse.json({ dependencies }, { status: 200 });
   } catch (error) {
     console.error('Error fetching dependencies:', error);
-    return NextResponse.json({ error: 'Failed to fetch dependencies' }, { status: 500 });
+    return handleDatabaseError();
   }
-} 
+});

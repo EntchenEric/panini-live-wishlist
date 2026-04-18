@@ -1,30 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth'
+import { handleForbidden, handleDatabaseError } from '@/lib/error-handler'
 
-const prisma = new PrismaClient();
-
-export async function GET(req: NextRequest) {
+export const GET = requireAuth(async (req: NextRequest, session) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const urlEnding = searchParams.get('urlEnding');
-    
+    const urlEnding = req.nextUrl.searchParams.get('urlEnding');
+
     if (!urlEnding) {
-      return NextResponse.json({ error: 'Missing required parameter: urlEnding' }, { status: 400 });
+      return NextResponse.json({ message: 'Missing required parameter: urlEnding' }, { status: 400 });
     }
-    
-    const notes = await prisma.note.findMany({
-      where: {
-        urlEnding: urlEnding
-      },
-      select: {
-        url: true,
-        note: true
-      }
-    });
-    
-    return NextResponse.json({ notes }, { status: 200 });
+
+    if (urlEnding !== session.urlEnding) {
+      return handleForbidden();
+    }
+
+    const page = parseInt(req.nextUrl.searchParams.get('page') || '1', 10);
+    const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '100', 10), 500);
+    const skip = (page - 1) * limit;
+
+    const [notes, total] = await Promise.all([
+      prisma.note.findMany({
+        where: { urlEnding },
+        select: { url: true, note: true },
+        skip,
+        take: limit,
+      }),
+      prisma.note.count({ where: { urlEnding } }),
+    ]);
+
+    return NextResponse.json({
+      notes,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    }, { status: 200 });
   } catch (error) {
     console.error('Error getting notes:', error);
-    return NextResponse.json({ error: 'Failed to retrieve notes' }, { status: 500 });
+    return handleDatabaseError();
   }
-} 
+});

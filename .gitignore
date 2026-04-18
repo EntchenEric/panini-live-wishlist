@@ -216,3 +216,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Debug HTML files from Selenium scripts
+*.html
+
+# Temp/debug data files
+tmp.json

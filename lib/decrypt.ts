@@ -1,29 +1,33 @@
 import crypto from 'crypto';
 
-const decrypt = (encryptedText: string) => {
-    const secretKey = process.env.SECRET_KEY;
-    const secretBuffer = process.env.SECRET_BUFFER;
+const ALGORITHM = 'aes-256-gcm';
+const _IV_LENGTH = 12;
+const AUTH_TAG_LENGTH = 16;
 
-    if (!secretKey || !secretBuffer) {
-        throw new Error('SECRET_KEY or SECRET_BUFFER is missing in environment variables');
-    }
+function getKey(): Buffer {
+  const secretKey = process.env.SECRET_KEY;
+  if (!secretKey) throw new Error('SECRET_KEY is missing in environment variables');
+  if (secretKey.length !== 32) throw new Error('SECRET_KEY must be 32 bytes');
+  return Buffer.from(secretKey, 'utf8');
+}
 
-    if (secretKey.length !== 32) {
-        throw new Error('SECRET_KEY must be 32 bytes');
-    }
+const decrypt = (encryptedText: string): string => {
+  const parts = encryptedText.split(':');
+  if (parts.length !== 3) {
+    throw new Error('Invalid encrypted format. Expected GCM format: iv:authTag:ciphertext');
+  }
 
-    if (secretBuffer.length !== 16) {
-        throw new Error('SECRET_BUFFER must be 16 bytes');
-    }
+  const key = getKey();
+  const iv = Buffer.from(parts[0], 'hex');
+  const authTag = Buffer.from(parts[1], 'hex');
+  const encrypted = parts[2];
 
-    const key = Buffer.from(secretKey, 'utf8');
-    const iv = Buffer.from(secretBuffer, 'utf8');
-    
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  decipher.setAuthTag(authTag);
 
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
 };
 
-export { decrypt }
+export { decrypt };

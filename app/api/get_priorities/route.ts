@@ -1,45 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth'
+import { handleForbidden, handleDatabaseError } from '@/lib/error-handler'
 
-const prisma = new PrismaClient()
-
-export async function GET(req: NextRequest) {
+export const GET = requireAuth(async (req: NextRequest, session) => {
     try {
         const urlEnding = req.nextUrl.searchParams.get('urlEnding');
 
         if (!urlEnding) {
-            return new NextResponse(
-                JSON.stringify({ message: 'urlEnding not provided.' }),
-                { status: 400 }
-            );
+            return NextResponse.json({ message: 'urlEnding not provided.' }, { status: 400 });
         }
 
-        const priorities = await prisma.prioritys.findMany({
-            where: {
-                urlEnding: urlEnding
-            },
-            select: {
-                url: true,
-                priority: true
-            }
+        if (urlEnding !== session.urlEnding) {
+            return handleForbidden();
+        }
+
+        const priorities = await prisma.priorities.findMany({
+            where: { urlEnding },
+            select: { url: true, priority: true }
         });
 
-        return new NextResponse(
-            JSON.stringify({ 
-                message: "Priorities retrieved successfully",
-                success: true,
-                priorities: priorities
-            }),
-            { status: 200 }
-        );
+        return NextResponse.json({
+            message: "Priorities retrieved successfully",
+            success: true,
+            priorities
+        }, { status: 200 });
     } catch (error) {
         console.error('Error getting priorities:', error);
-        return new NextResponse(
-            JSON.stringify({ 
-                message: 'An error occurred while getting priorities.',
-                error: String(error)
-            }),
-            { status: 500 }
-        );
+        return handleDatabaseError();
     }
-} 
+});

@@ -1,33 +1,30 @@
 import os
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
-import base64
 from dotenv import load_dotenv
 
 load_dotenv()
 
 secret_key = os.getenv('SECRET_KEY')
-secret_buffer = os.getenv('SECRET_BUFFER')
 
-if not secret_key or not secret_buffer:
-    raise ValueError('SECRET_KEY or SECRET_BUFFER is missing in environment variables')
+if not secret_key:
+    raise ValueError('SECRET_KEY is missing in environment variables')
 
 if len(secret_key) != 32:
     raise ValueError('SECRET_KEY must be 32 bytes')
-if len(secret_buffer) != 16:
-    raise ValueError('SECRET_BUFFER must be 16 bytes')
 
 key = bytes(secret_key, 'utf-8')
-iv = bytes(secret_buffer, 'utf-8')
 
 def decrypt_string(encrypted_text: str) -> str:
-    cipher = AES.new(key, AES.MODE_CBC, iv)
-    encrypted_bytes = bytes.fromhex(encrypted_text)
-    decrypted = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
-    return decrypted.decode('utf-8')
+    """Decrypt AES-256-GCM format: iv:authTag:ciphertext"""
+    parts = encrypted_text.split(':')
 
-def decrypt_base64(encrypted_text: str) -> str:
-    cipher = AES.new(key, AES.MODE_CBC, iv)
-    encrypted_bytes = base64.b64decode(encrypted_text)
-    decrypted = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
+    if len(parts) != 3:
+        raise ValueError('Invalid encrypted format. Expected GCM format: iv:authTag:ciphertext')
+
+    iv = bytes.fromhex(parts[0])
+    auth_tag = bytes.fromhex(parts[1])
+    ciphertext = bytes.fromhex(parts[2])
+
+    cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
+    decrypted = cipher.decrypt_and_verify(ciphertext, auth_tag)
     return decrypted.decode('utf-8')

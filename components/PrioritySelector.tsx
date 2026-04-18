@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Star, Loader2 } from "lucide-react";
+import { useState } from 'react';
+import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from 'react-toastify';
 import {
@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { useWishlistEvents } from '@/lib/wishlist-events';
 
 type PrioritySelectorProps = {
   url: string;
@@ -61,6 +62,7 @@ export function PrioritySelector({ url, urlEnding, initialPriority, isLoggedIn, 
   const [priority, setPriority] = useState<number | undefined>(initialPriority);
   const [loading, setLoading] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const { emit } = useWishlistEvents();
 
   const handleSetPriority = async (value: number) => {
     setLoading(true);
@@ -90,7 +92,7 @@ export function PrioritySelector({ url, urlEnding, initialPriority, isLoggedIn, 
         });
         
         if (!initialPriority) {
-          window.dispatchEvent(new CustomEvent('firstPriorityAdded'));
+          emit('firstPriorityAdded');
         }
       } else {
         toast.error(data.message || 'Failed to set priority', {
@@ -161,7 +163,8 @@ export function PrioritySelector({ url, urlEnding, initialPriority, isLoggedIn, 
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => {
               const isPrioritySet = priority === value;
               const colors = getPriorityColor(value);
-              
+              const tier = value <= 3 ? '▼' : value <= 6 ? '◆' : '▲';
+
               return (
                 <TooltipProvider key={value}>
                   <Tooltip>
@@ -170,14 +173,15 @@ export function PrioritySelector({ url, urlEnding, initialPriority, isLoggedIn, 
                         variant="outline"
                         size="sm"
                         disabled={loading}
+                        aria-label={`Priority ${value}: ${getPriorityDescription(value)}`}
                         className={`h-8 w-8 p-0 ${
-                          isPrioritySet 
-                            ? `${colors.bg} ${colors.text} border-2 ${colors.border}` 
+                          isPrioritySet
+                            ? `${colors.bg} ${colors.text} border-2 ${colors.border}`
                             : `bg-gray-700 hover:${colors.bg} hover:${colors.text} text-gray-200`
                         }`}
                         onClick={() => handleSetPriority(value)}
                       >
-                        {value}
+                        <span aria-hidden="true">{tier}</span>{value}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
