@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 
 const MAX_CONTENT_LENGTH = 1 * 1024 * 1024; // 1MB
 
