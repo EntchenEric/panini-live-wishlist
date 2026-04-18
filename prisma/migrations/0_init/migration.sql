@@ -1,4 +1,3 @@
-npm warn Unknown global config "python". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
 -- CreateTable
 CREATE TABLE `accountData` (
     `email` VARCHAR(191) NOT NULL,
