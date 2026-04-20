@@ -43,9 +43,9 @@ export default function Home() {
               <ShieldAlert className="inline-block mr-2" /> Security Notice
             </AlertTitle>
             <AlertDescription className="text-gray-200">
-              Your Panini password is stored encrypted but could be decrypted. <strong>Only use this if your Panini account has no sensitive payment data.</strong>
+              Your password is stored encrypted but <strong>not hashed</strong> — it needs to be readable because the Panini API requires your actual password to fetch your wishlist. Data is encrypted at rest, but if the server were compromised, it could be decrypted.
               <br />
-              <Lock className="inline-block mr-2 mt-1" />I will never view your password or personal data.
+              <Lock className="inline-block mr-2 mt-1" />I will never look at your login data — trust me bro. But any server can be hacked, so better safe than sorry. <strong>Only use this if your Panini account has no sensitive payment data.</strong>
             </AlertDescription>
           </Alert>
 
