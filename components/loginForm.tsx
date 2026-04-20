@@ -27,6 +27,7 @@ const formSchema = z.object({
 export function LoginForm() {
     const [errorMessage, setErrorMessage] = useState<string>("")
     const [showPassword, setShowPassword] = useState(false)
+    const [loading, setLoading] = useState(false)
     const router = useRouter()
 
     const form = useForm<z.infer<typeof formSchema>>({
@@ -39,6 +40,7 @@ export function LoginForm() {
     })
 
     const createUser = async (email: string, password: string, urlEnding: string) => {
+        setLoading(true)
         try {
             const response = await fetch("/api/create_user", {
                 method: "POST",
@@ -57,6 +59,8 @@ export function LoginForm() {
             }
         } catch {
             setErrorMessage("An unexpected error occurred.")
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -147,11 +151,12 @@ export function LoginForm() {
                     <div role="alert" className="text-red-500 mt-4">{errorMessage}</div>
                 )}
 
-                <Button 
-                    variant="secondary" 
+                <Button
+                    variant="secondary"
+                    disabled={loading}
                     className="cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:bg-blue-600"
                 >
-                    Create sharable wishlist
+                    {loading ? 'Creating...' : 'Create sharable wishlist'}
                 </Button>
             </form>
         </Form>
