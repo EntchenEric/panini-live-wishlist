@@ -16,15 +16,17 @@ import {
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
 
 const formSchema = z.object({
     email: z.string().min(2, "Your Email has to be at least 2 characters long.").max(50, "Your Email can't exeed 50 characters.").email("Please enter a valid Email."),
-    password: z.string().min(8, "Your Password has to be at least 8 characters long.").max(50, "Your Password can't exceed 50 characters.").regex(/[A-Z]/, "Must contain an uppercase letter").regex(/[a-z]/, "Must contain a lowercase letter").regex(/[0-9]/, "Must contain a digit").regex(/[^A-Za-z0-9]/, "Must contain a special character"),
+    password: z.string().min(1, "Password is required"),
     urlEnding: z.string().min(3, "Your wish URL Ending has to be at least 3 characters long.").max(50, "Your wish URL Ending can't exeed 50 characters."),
 })
 
 export function LoginForm() {
     const [errorMessage, setErrorMessage] = useState<string>("")
+    const [showPassword, setShowPassword] = useState(false)
     const router = useRouter()
 
     const form = useForm<z.infer<typeof formSchema>>({
@@ -96,12 +98,21 @@ export function LoginForm() {
                                 Password
                             </FormLabel>
                             <FormControl>
-                                <Input
-                                    type="password"
-                                    placeholder="password123"
-                                    {...field}
-                                    className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:bg-gray-800 text-white selection:bg-blue-500 selection:text-white"
-                                />
+                                <div className="relative">
+                                    <Input
+                                        type={showPassword ? "text" : "password"}
+                                        placeholder="Your Panini password"
+                                        {...field}
+                                        className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:bg-gray-800 text-white selection:bg-blue-500 selection:text-white pr-10"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                                    >
+                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                </div>
                             </FormControl>
                             <FormDescription>
                                 Enter the Password you use to log in to panini.

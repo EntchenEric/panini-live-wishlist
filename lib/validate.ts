@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export const CreateUserSchema = z.object({
   email: z.string().email('Invalid email address').min(1, 'Email is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters').regex(/[A-Z]/, 'Password must contain an uppercase letter').regex(/[a-z]/, 'Password must contain a lowercase letter').regex(/[0-9]/, 'Password must contain a digit').regex(/[^A-Za-z0-9]/, 'Password must contain a special character'),
+  password: z.string().min(1, 'Password is required'),
   urlEnding: z.string().min(1, 'URL ending is required').regex(/^[a-zA-Z0-9-]+$/, 'URL ending can only contain letters, numbers, and hyphens')
 });
 
@@ -27,7 +27,7 @@ export type DeleteAccountInput = z.infer<typeof DeleteAccountSchema>;
 
 export const ChangePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(8, 'New password must be at least 8 characters').regex(/[A-Z]/, 'New password must contain an uppercase letter').regex(/[a-z]/, 'New password must contain a lowercase letter').regex(/[0-9]/, 'New password must contain a digit').regex(/[^A-Za-z0-9]/, 'New password must contain a special character'),
+  newPassword: z.string().min(1, 'New password is required'),
   urlEnding: z.string().min(1, 'URL ending is required')
 });
 

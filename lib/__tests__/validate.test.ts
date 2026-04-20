@@ -27,10 +27,10 @@ describe('CreateUserSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects short password', () => {
+  it('rejects empty password', () => {
     const result = CreateUserSchema.safeParse({
       email: 'test@example.com',
-      password: 'Sh0rt!',
+      password: '',
       urlEnding: 'my-wishlist',
     })
     expect(result.success).toBe(false)
@@ -76,10 +76,10 @@ describe('ChangePasswordSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects short new password', () => {
+  it('rejects empty new password', () => {
     const result = ChangePasswordSchema.safeParse({
       currentPassword: 'oldpassword',
-      newPassword: 'Sh0rt!',
+      newPassword: '',
       urlEnding: 'my-wishlist',
     })
     expect(result.success).toBe(false)

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { UserRound, LogOut } from "lucide-react";
+import { UserRound, LogOut, Eye, EyeOff } from "lucide-react";
 import { toast } from 'react-toastify';
 import {
   Dialog,
@@ -30,7 +30,7 @@ import { useWishlistEvents } from '@/lib/wishlist-events';
 
 const formSchema = z.object({
   email: z.string().min(2, "Your Email has to be at least 2 characters long.").max(50, "Your Email can't exceed 50 characters.").email("Please enter a valid Email."),
-  password: z.string().min(8, "Your Password has to be at least 8 characters long.").max(50, "Your Password can't exceed 50 characters.").regex(/[A-Z]/, "Must contain an uppercase letter").regex(/[a-z]/, "Must contain a lowercase letter").regex(/[0-9]/, "Must contain a digit").regex(/[^A-Za-z0-9]/, "Must contain a special character"),
+  password: z.string().min(1, "Password is required"),
   urlEnding: z.string().min(3, "Your wish URL Ending has to be at least 3 characters long.").max(50, "Your wish URL Ending can't exceed 50 characters."),
 });
 
@@ -42,6 +42,7 @@ type LoginSession = {
 export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { emit } = useWishlistEvents();
   const [loginSession, setLoginSession] = useState<LoginSession>({
     isLoggedIn: false,
@@ -206,12 +207,21 @@ export function LoginButton({ currentUrlEnding }: { currentUrlEnding: string }) 
                     <FormItem>
                       <FormLabel className="text-gray-200">Password</FormLabel>
                       <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="Your password"
-                          {...field}
-                          className="bg-gray-700 border-gray-600 text-white"
-                        />
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Your password"
+                            {...field}
+                            className="bg-gray-700 border-gray-600 text-white pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
                       </FormControl>
                       <FormMessage className="text-red-400" />
                     </FormItem>

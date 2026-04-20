@@ -29,29 +29,23 @@ export default function Home() {
             </p>
           </div>
 
-          <Alert className="mb-6 bg-yellow-800/80 p-5 rounded-2xl text-white border border-yellow-600 shadow-md">
+          <Alert className="mb-6 bg-yellow-800/80 p-4 rounded-2xl text-white border border-yellow-600 shadow-md">
             <AlertTitle className="text-white font-bold">
-              <ShieldAlert className="inline-block mr-2" /> Login Delay Notice
+              <ShieldAlert className="inline-block mr-2" /> Login Delay
             </AlertTitle>
             <AlertDescription className="text-gray-200">
-              <span>
-                The login might take up to 10 seconds. Please be patient while we authenticate your account.
-                If it takes longer, you can try again or contact support.
-              </span>
+              Login can take up to 10 seconds. If it takes longer, try again or reach out on Discord (@entcheneric) or email (eseidel2004@gmail.com).
             </AlertDescription>
           </Alert>
 
-          <Alert className="mb-6 bg-red-900/80 p-5 rounded-2xl text-white border border-red-600 shadow-md">
+          <Alert className="mb-6 bg-red-900/80 p-4 rounded-2xl text-white border border-red-600 shadow-md">
             <AlertTitle className="text-white font-bold">
-              <ShieldAlert className="inline-block mr-2" /> Security Warning
+              <ShieldAlert className="inline-block mr-2" /> Security Notice
             </AlertTitle>
             <AlertDescription className="text-gray-200">
-              <span>
-                Your Panini password is stored in a way that allows us to see it. While encrypted, it&apos;s not fully secure.
-                <strong> Only use this if your Panini account has no sensitive payment data. </strong>
-                <br /><br />
-                <Lock className="inline-block mr-2" /> <strong>Note:</strong> We will <u>never</u> view your password or any other personal data.
-              </span>
+              Your Panini password is stored encrypted but could be decrypted. <strong>Only use this if your Panini account has no sensitive payment data.</strong>
+              <br />
+              <Lock className="inline-block mr-2 mt-1" />I will never view your password or personal data.
             </AlertDescription>
           </Alert>
 
