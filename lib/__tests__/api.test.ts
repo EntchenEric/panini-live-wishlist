@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 
 // Mock Prisma before importing anything that uses it
 vi.mock('@/lib/prisma', () => ({
@@ -60,7 +61,7 @@ vi.mock('@/lib/auth', () => ({
 describe('Health API', () => {
   it('should return a status response', async () => {
     const { GET } = await import('@/app/api/health/route')
-    const response = await GET(new Request('http://localhost/api/health'))
+    const response = await GET()
     expect([200, 503]).toContain(response.status)
     const data = await response.json()
     expect(data).toHaveProperty('status')
@@ -73,7 +74,7 @@ describe('Session API', () => {
     vi.mocked(verifySession).mockResolvedValueOnce(null)
 
     const { GET } = await import('@/app/api/session/route')
-    const response = await GET(new Request('http://localhost/api/session'))
+    const response = await GET(new NextRequest('http://localhost/api/session'))
     expect(response.status).toBe(401)
   })
 })
@@ -84,7 +85,7 @@ describe('Logout API', () => {
     vi.mocked(verifySession).mockResolvedValueOnce(null)
 
     const { POST } = await import('@/app/api/logout/route')
-    const response = await POST(new Request('http://localhost/api/logout', { method: 'POST' }))
+    const response = await POST(new NextRequest('http://localhost/api/logout', { method: 'POST' }))
     expect(response.status).toBe(401)
   })
 })
