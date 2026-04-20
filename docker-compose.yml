@@ -3,14 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}
       - SESSION_SECRET=${SESSION_SECRET}
       - BACKEND_URL=http://api:5000
-      - FLASK_BACKEND_URL=http://api:5000
       - FLASK_API_KEY=${FLASK_API_KEY}
       - NEXT_PUBLIC_APP_DOMAIN=${NEXT_PUBLIC_APP_DOMAIN}
       - FRONTEND_URL=${FRONTEND_URL}
@@ -29,8 +26,6 @@ services:
     build:
       context: ./python_backend
       dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}
