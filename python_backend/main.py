@@ -1,16 +1,19 @@
-from flask import Flask, request, jsonify
-from test_account import handle_login
-from send_wishlist import send_wishlist
-from get_wishlist import get_wishlist
-from decrypt_string import decrypt_string
-from flask_cors import CORS
+import contextlib
 import json
-from dotenv import load_dotenv
 import os
-from get_comic_information import get_information
 import threading
 import time
 from typing import Any
+
+from dotenv import load_dotenv
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+
+from decrypt_string import decrypt_string
+from get_comic_information import get_information
+from get_wishlist import get_wishlist
+from send_wishlist import send_wishlist
+from test_account import handle_login
 
 load_dotenv()
 
@@ -154,10 +157,7 @@ def get_wishlist_api() -> tuple[str, int]:
         return jsonify({"error": "Email is required"}), 400
 
     try:
-        if password:
-            result = get_wishlist(email, password)
-        else:
-            result = get_wishlist(email)
+        result = get_wishlist(email, password) if password else get_wishlist(email)
         return jsonify({"message": "Got Wishlist successfully", "result": json.dumps(result)}), 200
     except Exception as e:
         app.logger.error(f"Error in get_wishlist: {e}")
@@ -243,10 +243,8 @@ def get_comic_information_api() -> tuple[str, int]:
             return jsonify({"error": result["error"]}), 400
 
         if isinstance(result, str):
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 result = json.loads(result)
-            except json.JSONDecodeError:
-                pass
 
         _set_cached_comic(url, result)
         return jsonify({"message": "Comic information fetched successfully", "result": result}), 200

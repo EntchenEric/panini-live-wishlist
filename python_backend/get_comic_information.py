@@ -1,7 +1,9 @@
+import contextlib
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 from chrome_options import get_chrome_options
 
@@ -108,7 +110,5 @@ def get_information(url: str) -> dict[str, str]:
         }
     finally:
         if driver:
-            try:
+            with contextlib.suppress(Exception):
                 driver.quit()
-            except Exception:
-                pass

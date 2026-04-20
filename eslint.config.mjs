@@ -1,28 +1,25 @@
-import tseslint from "@typescript-eslint/eslint-plugin";
-import tsparser from "@typescript-eslint/parser";
-import reactHooks from "eslint-plugin-react-hooks";
+import nextConfig from "eslint-config-next";
 
 export default [
+  ...nextConfig,
   {
     files: ["**/*.{ts,tsx}"],
-    languageOptions: {
-      parser: tsparser,
-      parserOptions: {
-        ecmaVersion: "latest",
-        sourceType: "module",
-      },
-    },
-    plugins: {
-      "@typescript-eslint": tseslint,
-      "react-hooks": reactHooks,
-    },
     rules: {
-      "react-hooks/exhaustive-deps": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
   {
-    ignores: ["node_modules/**", ".next/**", "python_backend/**"],
+    rules: {
+      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/immutability": "warn",
+      "react-hooks/refs": "warn",
+      "react/no-unescaped-entities": "warn",
+    },
+  },
+  {
+    ignores: ["python_backend/**"],
   },
 ];

@@ -1,10 +1,12 @@
+import contextlib
+import traceback
+from time import sleep
+
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from time import sleep
-import traceback
+from selenium.webdriver.support.ui import WebDriverWait
 
 from chrome_options import get_chrome_options
 
@@ -56,7 +58,7 @@ def get_wishlist(email: str, password: str | None = None) -> dict[str, str | lis
                 print("Login successful")
             except Exception as e:
                 print(f"Login failed: {e}")
-                raise Exception("Login failed - could not access user's wishlist")
+                raise Exception("Login failed - could not access user's wishlist") from None
 
             print("Navigating to wishlist page...")
             driver.get("https://www.panini.de/shp_deu_de/wishlist/shared/")
@@ -65,12 +67,10 @@ def get_wishlist(email: str, password: str | None = None) -> dict[str, str | lis
             print("No password provided, accessing shared wishlist page...")
             driver.get("https://www.panini.de/shp_deu_de/wishlist/shared/")
 
-            try:
+            with contextlib.suppress(Exception):
                 WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Nur technische Cookies verwenden')]"))
                 ).click()
-            except Exception:
-                pass
 
             sleep(3)
 
@@ -81,7 +81,7 @@ def get_wishlist(email: str, password: str | None = None) -> dict[str, str | lis
             )
             print("Product items loaded successfully")
         except Exception:
-            print(f"Error waiting for product items")
+            print("Error waiting for product items")
 
             if password:
                 message_elements = BeautifulSoup(driver.page_source, "lxml").select(".message")
@@ -113,7 +113,7 @@ def get_wishlist(email: str, password: str | None = None) -> dict[str, str | lis
 
         print(f"Found {len(product_items)} product items")
         datas: list[dict[str, str]] = []
-        for idx, item in enumerate(product_items):
+        for _idx, item in enumerate(product_items):
             try:
                 product_link_elem = item.select_one("a.product-item-link")
                 if not product_link_elem:

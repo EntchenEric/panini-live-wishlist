@@ -1,19 +1,16 @@
 """Tests for Python backend — encryption, rate limiting, and request validation."""
-import json
-import time
-import threading
-import unittest
-from unittest.mock import patch, MagicMock
-
 # We need to set env vars before importing the app modules
 import os
+import threading
+import unittest
+
 os.environ.setdefault('SECRET_KEY', '0123456789abcdef0123456789abcdef')
 os.environ.setdefault('FLASK_API_KEY', 'test-api-key')
 os.environ.setdefault('FRONTEND_URL', 'http://localhost:3000')
 os.environ.setdefault('BACKEND_PORT', '5000')
 
-from encrypt import encrypt
 from decrypt_string import decrypt_string
+from encrypt import encrypt
 
 
 class TestEncryption(unittest.TestCase):
@@ -40,7 +37,7 @@ class TestEncryption(unittest.TestCase):
             decrypt_string("invalid-no-colons")
 
     def test_decrypt_invalid_hex_raises(self) -> None:
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             decrypt_string("not-hex:not-hex:not-hex")
 
     def test_encrypt_empty_string(self) -> None:
@@ -59,25 +56,25 @@ class TestRateLimiter(unittest.TestCase):
     def test_rate_limit_allows_under_limit(self) -> None:
         """_check_rate_limit should allow requests under the limit."""
         # We need to import main after env vars are set
-        from main import _check_rate_limit, _shared_wishlist_attempts, _rate_limit_lock
+        from main import _check_rate_limit, _rate_limit_lock, _shared_wishlist_attempts
 
         # Clean up any previous state
         with _rate_limit_lock:
             _shared_wishlist_attempts.clear()
 
         ip = "192.168.1.1"
-        for i in range(10):
+        for _i in range(10):
             self.assertTrue(_check_rate_limit(ip))
 
     def test_rate_limit_blocks_over_limit(self) -> None:
         """_check_rate_limit should block requests over the limit."""
-        from main import _check_rate_limit, _shared_wishlist_attempts, _rate_limit_lock
+        from main import _check_rate_limit, _rate_limit_lock, _shared_wishlist_attempts
 
         with _rate_limit_lock:
             _shared_wishlist_attempts.clear()
 
         ip = "10.0.0.1"
-        for i in range(10):
+        for _i in range(10):
             _check_rate_limit(ip)
 
         # 11th request should be blocked
@@ -85,7 +82,7 @@ class TestRateLimiter(unittest.TestCase):
 
     def test_rate_limit_different_ips_independent(self) -> None:
         """Different IPs should have independent rate limits."""
-        from main import _check_rate_limit, _shared_wishlist_attempts, _rate_limit_lock
+        from main import _check_rate_limit, _rate_limit_lock, _shared_wishlist_attempts
 
         with _rate_limit_lock:
             _shared_wishlist_attempts.clear()
@@ -93,7 +90,7 @@ class TestRateLimiter(unittest.TestCase):
         ip1 = "172.16.0.1"
         ip2 = "172.16.0.2"
 
-        for i in range(10):
+        for _i in range(10):
             _check_rate_limit(ip1)
 
         self.assertFalse(_check_rate_limit(ip1))
@@ -101,7 +98,7 @@ class TestRateLimiter(unittest.TestCase):
 
     def test_rate_limit_thread_safety(self) -> None:
         """Rate limiter should be thread-safe under concurrent access."""
-        from main import _check_rate_limit, _shared_wishlist_attempts, _rate_limit_lock
+        from main import _check_rate_limit, _rate_limit_lock, _shared_wishlist_attempts
 
         with _rate_limit_lock:
             _shared_wishlist_attempts.clear()
@@ -132,7 +129,7 @@ class TestComicCache(unittest.TestCase):
 
     def test_cache_set_and_get(self) -> None:
         """Should be able to set and get cached data."""
-        from main import _get_cached_comic, _set_cached_comic, _cache_lock, comic_cache
+        from main import _cache_lock, _get_cached_comic, _set_cached_comic, comic_cache
 
         with _cache_lock:
             comic_cache.clear()
@@ -144,7 +141,7 @@ class TestComicCache(unittest.TestCase):
 
     def test_cache_miss_returns_none(self) -> None:
         """Should return None for URLs not in cache."""
-        from main import _get_cached_comic, _cache_lock, comic_cache
+        from main import _cache_lock, _get_cached_comic, comic_cache
 
         with _cache_lock:
             comic_cache.clear()
@@ -154,7 +151,12 @@ class TestComicCache(unittest.TestCase):
 
     def test_cache_eviction_when_full(self) -> None:
         """Cache should evict old entries when full."""
-        from main import _set_cached_comic, _get_cached_comic, _cache_lock, comic_cache, CACHE_MAX_ENTRIES
+        from main import (
+            CACHE_MAX_ENTRIES,
+            _cache_lock,
+            _set_cached_comic,
+            comic_cache,
+        )
 
         with _cache_lock:
             comic_cache.clear()
@@ -169,7 +171,7 @@ class TestComicCache(unittest.TestCase):
 
     def test_cache_ttl_expiry(self) -> None:
         """Expired cache entries should return None."""
-        from main import _set_cached_comic, _get_cached_comic, _cache_lock, comic_cache
+        from main import _cache_lock, _get_cached_comic, _set_cached_comic, comic_cache
 
         with _cache_lock:
             comic_cache.clear()
@@ -222,12 +224,12 @@ class TestFlaskRoutes(unittest.TestCase):
 
     def test_get_shared_wishlist_rate_limit(self) -> None:
         """Should rate limit after 10 requests."""
-        from main import _shared_wishlist_attempts, _rate_limit_lock
+        from main import _rate_limit_lock, _shared_wishlist_attempts
 
         with _rate_limit_lock:
             _shared_wishlist_attempts.clear()
 
-        for i in range(10):
+        for _i in range(10):
             response = self.client.get('/get_shared_wishlist', headers=self._headers())
             # May be 500 if shared credentials not configured
             self.assertIn(response.status_code, [200, 429, 500])
@@ -241,8 +243,9 @@ class TestChromeOptions(unittest.TestCase):
     """Test that Chrome options are configured correctly."""
 
     def test_chrome_options_type(self) -> None:
-        from chrome_options import get_chrome_options
         from selenium.webdriver.chrome.options import Options
+
+        from chrome_options import get_chrome_options
         opts = get_chrome_options()
         self.assertIsInstance(opts, Options)
 
@@ -252,7 +255,7 @@ class TestChromeOptions(unittest.TestCase):
         caps = opts.to_capabilities()
         args = caps.get('chromeOptions', {}).get('args', []) or caps.get('goog:chromeOptions', {}).get('args', [])
         has_headless = any('headless' in arg for arg in args) or opts._arguments and any('headless' in arg for arg in opts._arguments)
-        self.assertTrue(has_headless, f"Expected headless argument")
+        self.assertTrue(has_headless, "Expected headless argument")
 
     def test_chrome_options_has_no_sandbox(self) -> None:
         from chrome_options import get_chrome_options
@@ -260,7 +263,7 @@ class TestChromeOptions(unittest.TestCase):
         caps = opts.to_capabilities()
         args = caps.get('chromeOptions', {}).get('args', []) or caps.get('goog:chromeOptions', {}).get('args', [])
         has_no_sandbox = any('no-sandbox' in arg for arg in args) or opts._arguments and any('no-sandbox' in arg for arg in opts._arguments)
-        self.assertTrue(has_no_sandbox, f"Expected no-sandbox argument")
+        self.assertTrue(has_no_sandbox, "Expected no-sandbox argument")
 
 
 if __name__ == '__main__':
