@@ -23,7 +23,7 @@ flask_api_key = os.getenv('FLASK_API_KEY')
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1MB
 
-frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3004')
 CORS(app, origins=[frontend_url])
 
 # Thread-safe rate limiting for /get_shared_wishlist

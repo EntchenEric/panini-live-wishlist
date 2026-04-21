@@ -6,8 +6,8 @@ import unittest
 
 os.environ.setdefault('SECRET_KEY', '0123456789abcdef0123456789abcdef')
 os.environ.setdefault('FLASK_API_KEY', 'test-api-key')
-os.environ.setdefault('FRONTEND_URL', 'http://localhost:3000')
-os.environ.setdefault('BACKEND_PORT', '5000')
+os.environ.setdefault('FRONTEND_URL', 'http://localhost:3004')
+os.environ.setdefault('BACKEND_PORT', '3005')
 
 from decrypt_string import decrypt_string
 from encrypt import encrypt

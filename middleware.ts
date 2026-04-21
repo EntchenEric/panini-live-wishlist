@@ -23,7 +23,7 @@ export function middleware(request: NextRequest) {
 
   response.headers.set(
     'Content-Security-Policy',
-    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' https://www.panini.de https://*.panini.de data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.FLASK_BACKEND_URL || 'http://localhost:5000'}`
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' https://www.panini.de https://*.panini.de data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.FLASK_BACKEND_URL || 'http://localhost:3005'}`
   );
 
   return response;
