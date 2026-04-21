@@ -85,14 +85,14 @@ def _validate_json_body(required_fields: list[str]) -> tuple[dict[str, Any] | No
 _BOT_PATHS = frozenset({
     '/wp-includes', '/xmlrpc.php', '/wp-admin', '/wp-content',
     '/wordpress', '/blog', '/web', '/news', '/cms', '/sito',
-    '/wp1', '/wp2', '/test', '/site', '/website',
+    '/wp1', '/wp2', '/site', '/website',
 })
 
 
 @app.before_request
 def verify_api_key() -> tuple[str, int] | None:
     path = request.path.lower()
-    if any(path.startswith(p) for p in _BOT_PATHS):
+    if path in _BOT_PATHS or any(path.startswith(p + '/') for p in _BOT_PATHS):
         return '', 404
     if not flask_api_key:
         return jsonify({"error": "Server configuration error: API key not set"}), 500

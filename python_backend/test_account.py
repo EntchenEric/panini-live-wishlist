@@ -61,38 +61,35 @@ def handle_login(email: str, password: str) -> str:
         except Exception:
             print("No cookie consent button found, continuing")
 
-        print(f"Current URL after cookie: {driver.current_url}")
-
-        print("Waiting for login form fields...")
-        try:
-            email_field = WebDriverWait(driver, 15).until(
-                EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='email'], input[name='login[username]'], input#email"))
-            )
-        except Exception:
-            _save_debug_info(driver, "email_field_not_found")
-            raise
-
-        password_field = WebDriverWait(driver, 10).until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='password'], input[name='login[password]'], input#pass"))
+        # Wait for Gigya SDK to render the login form
+        print("Waiting for Gigya login form...")
+        username_fields = WebDriverWait(driver, 20).until(
+            lambda d: [el for el in d.find_elements(By.CSS_SELECTOR, "input.gigya-input-text[name='username']") if el.is_displayed()]
         )
+        email_field = username_fields[0]
+
+        password_fields = WebDriverWait(driver, 10).until(
+            lambda d: [el for el in d.find_elements(By.CSS_SELECTOR, "input.gigya-input-password[name='password']") if el.is_displayed()]
+        )
+        password_field = password_fields[0]
 
         print("Filling login form...")
-        email_field.clear()
-        email_field.send_keys(email)
-        password_field.clear()
-        password_field.send_keys(password)
+        driver.execute_script("arguments[0].value = arguments[1];", email_field, email)
+        driver.execute_script("arguments[0].value = arguments[1];", password_field, password)
 
         print("Clicking login button...")
-        login_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit'].action.login, input[type='submit'][value='Senden'], button.action.login"))
-        )
-        driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+        login_buttons = driver.find_elements(By.CSS_SELECTOR, "input.gigya-input-submit[type='submit']")
+        visible_buttons = [b for b in login_buttons if b.is_displayed()]
+        if not visible_buttons:
+            _save_debug_info(driver, "no_visible_submit")
+            raise Exception("No visible submit button found")
+        login_button = visible_buttons[0]
         driver.execute_script("arguments[0].click();", login_button)
 
         print("Waiting for login to complete...")
         try:
             WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.XPATH, "//span[contains(text(),'Mein Konto')]"))
+                EC.presence_of_element_located((By.XPATH, "//*[contains(text(),'Mein Konto')]"))
             )
             print("Login successful")
             return "Login successful"

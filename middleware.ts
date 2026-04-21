@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const MAX_CONTENT_LENGTH = 1 * 1024 * 1024; // 1MB
+const isDev = process.env.NODE_ENV === 'development';
 
 export function middleware(request: NextRequest) {
   const nonce = crypto.randomUUID();
@@ -21,9 +22,13 @@ export function middleware(request: NextRequest) {
     request: { headers: requestHeaders },
   });
 
+  const scriptSrc = isDev
+    ? `'self' 'nonce-${nonce}' 'unsafe-eval' 'unsafe-inline' https://panini.entcheneric.com/cdn-cgi/`
+    : `'self' 'nonce-${nonce}' 'strict-dynamic' https://panini.entcheneric.com/cdn-cgi/`;
+
   response.headers.set(
     'Content-Security-Policy',
-    `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://panini.entcheneric.com/cdn-cgi/; style-src 'self' 'unsafe-inline'; img-src 'self' https://www.panini.de https://*.panini.de data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.FLASK_BACKEND_URL || 'http://localhost:3005'}`
+    `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' https://www.panini.de https://*.panini.de data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.FLASK_BACKEND_URL || 'http://localhost:3005'}`
   );
 
   return response;
