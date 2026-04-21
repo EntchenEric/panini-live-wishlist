@@ -82,6 +82,13 @@ def _validate_json_body(required_fields: list[str]) -> tuple[dict[str, Any] | No
     return data, None
 
 
+def _safe_decrypt(encrypted: str) -> str | None:
+    try:
+        return decrypt_string(encrypted)
+    except (ValueError, KeyError):
+        return None
+
+
 _BOT_PATHS = frozenset({
     '/wp-includes', '/xmlrpc.php', '/wp-admin', '/wp-content',
     '/wordpress', '/blog', '/web', '/news', '/cms', '/sito',
@@ -116,8 +123,8 @@ def login() -> tuple[str, int]:
     if error:
         return jsonify({"error": error}), 400
 
-    email = decrypt_string(data['email'])
-    password = decrypt_string(data['password'])
+    email = _safe_decrypt(data['email'])
+    password = _safe_decrypt(data['password'])
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
@@ -138,8 +145,8 @@ def send_wishlist_api() -> tuple[str, int]:
     if error:
         return jsonify({"error": error}), 400
 
-    email = decrypt_string(data['email'])
-    password = decrypt_string(data['password'])
+    email = _safe_decrypt(data['email'])
+    password = _safe_decrypt(data['password'])
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
@@ -160,7 +167,7 @@ def get_wishlist_api() -> tuple[str, int]:
     if error:
         return jsonify({"error": error}), 400
 
-    email = decrypt_string(data['email'])
+    email = _safe_decrypt(data['email'])
     password = decrypt_string(data.get('password', '')) if data.get('password') else None
 
     if not email:
@@ -180,8 +187,8 @@ def get_wishlist_complete_api() -> tuple[str, int]:
     if error:
         return jsonify({"error": error}), 400
 
-    email = decrypt_string(data['email'])
-    password = decrypt_string(data['password'])
+    email = _safe_decrypt(data['email'])
+    password = _safe_decrypt(data['password'])
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
