@@ -221,4 +221,5 @@ cython_debug/
 *.html
 
 # Temp/debug data files
-tmp.json
+tmp.json*.sh
+python_backend/lib64

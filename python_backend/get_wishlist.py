@@ -11,6 +11,50 @@ from selenium.webdriver.support.ui import WebDriverWait
 from chrome_options import get_chrome_options
 
 
+def _click_cookie_consent(driver: webdriver.Chrome) -> None:
+    try:
+        WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Nur technische Cookies verwenden')]"))
+        ).click()
+        print("Clicked cookie consent button")
+    except Exception:
+        pass
+
+
+def _gigya_login(driver: webdriver.Chrome, email: str, password: str) -> None:
+    """Login using Gigya SDK on Panini's site."""
+    # Check for queue-it redirect
+    if "queue-it.net" in driver.current_url:
+        print("Redirected to queue-it, waiting...")
+        WebDriverWait(driver, 120).until(
+            lambda d: "queue-it.net" not in d.current_url
+        )
+
+    _click_cookie_consent(driver)
+
+    print("Filling Gigya login form...")
+    username_fields = WebDriverWait(driver, 20).until(
+        lambda d: [el for el in d.find_elements(By.CSS_SELECTOR, "input.gigya-input-text[name='username']") if el.is_displayed()]
+    )
+    username_fields[0].send_keys(email)
+
+    password_fields = WebDriverWait(driver, 10).until(
+        lambda d: [el for el in d.find_elements(By.CSS_SELECTOR, "input.gigya-input-password[name='password']") if el.is_displayed()]
+    )
+    password_fields[0].send_keys(password)
+
+    submit_buttons = driver.find_elements(By.CSS_SELECTOR, "input.gigya-input-submit[type='submit']")
+    visible_buttons = [b for b in submit_buttons if b.is_displayed()]
+    if visible_buttons:
+        driver.execute_script("arguments[0].click();", visible_buttons[0])
+
+    print("Waiting for login to complete...")
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(text(),'Mein Konto')]"))
+    )
+    print("Login successful")
+
+
 def get_wishlist(email: str, password: str | None = None) -> dict[str, str | list[dict[str, str]]]:
     driver = None
     try:
@@ -21,44 +65,7 @@ def get_wishlist(email: str, password: str | None = None) -> dict[str, str | lis
         if password:
             print("Logging in to access user's wishlist...")
             driver.get("https://www.panini.de/shp_deu_de/customer/account/login/")
-
-            try:
-                print("Looking for cookie consent button...")
-                WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Nur technische Cookies verwenden')]"))
-                ).click()
-            except Exception:
-                pass
-
-            print("Filling login form...")
-            email_field = WebDriverWait(driver, 15).until(
-                EC.visibility_of_element_located((By.XPATH, "//input[@placeholder='Email *']"))
-            )
-            password_field = WebDriverWait(driver, 15).until(
-                EC.visibility_of_element_located((By.XPATH, "//input[@placeholder='Passwort *']"))
-            )
-
-            driver.execute_script("arguments[0].scrollIntoView(true);", email_field)
-            driver.execute_script("arguments[0].scrollIntoView(true);", password_field)
-
-            driver.execute_script("arguments[0].value = arguments[1];", email_field, email)
-            driver.execute_script("arguments[0].value = arguments[1];", password_field, password)
-
-            login_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//input[@value='Senden']"))
-            )
-            driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
-            driver.execute_script("arguments[0].click();", login_button)
-
-            print("Waiting for login to complete...")
-            try:
-                WebDriverWait(driver, 15).until(
-                    EC.presence_of_element_located((By.XPATH, "//span[contains(text(),'Mein Konto')]"))
-                )
-                print("Login successful")
-            except Exception as e:
-                print(f"Login failed: {e}")
-                raise Exception("Login failed - could not access user's wishlist") from None
+            _gigya_login(driver, email, password)
 
             print("Navigating to wishlist page...")
             driver.get("https://www.panini.de/shp_deu_de/wishlist/shared/")
@@ -66,12 +73,7 @@ def get_wishlist(email: str, password: str | None = None) -> dict[str, str | lis
         else:
             print("No password provided, accessing shared wishlist page...")
             driver.get("https://www.panini.de/shp_deu_de/wishlist/shared/")
-
-            with contextlib.suppress(Exception):
-                WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Nur technische Cookies verwenden')]"))
-                ).click()
-
+            _click_cookie_consent(driver)
             sleep(3)
 
         print("Waiting for product items to load...")
@@ -165,7 +167,7 @@ def get_wishlist(email: str, password: str | None = None) -> dict[str, str | lis
     except Exception as e:
         print(f"Error getting wishlist: {e}")
         traceback.print_exc()
-        return {"message": f"Failed to get wishlist: {str(e)}", "data": []}
+        return {"message": "Failed to get wishlist. Please try again later.", "data": []}
 
     finally:
         if driver:

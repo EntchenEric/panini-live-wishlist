@@ -35,7 +35,12 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 COPY . .
 
-RUN mkdir -p /tmp/selenium_debug && chmod 777 /tmp/selenium_debug
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 appuser && \
+    mkdir -p /tmp/selenium_debug && \
+    chown -R appuser:appuser /app /tmp/selenium_debug
+
+USER appuser
 
 EXPOSE 5000
 

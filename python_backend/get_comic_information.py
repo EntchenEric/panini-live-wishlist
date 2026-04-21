@@ -103,7 +103,6 @@ def get_information(url: str) -> dict[str, str]:
         print(f"Error in get_information: {e}")
         return {
             "price": "Price unavailable",
-            "error": str(e),
             "url": url,
             "title": "Unknown Title",
             "name": "Unknown Comic"

@@ -8,6 +8,7 @@ from typing import Any
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from urllib.parse import urlparse
 
 from decrypt_string import decrypt_string
 from get_comic_information import get_information
@@ -95,12 +96,31 @@ _BOT_PATHS = frozenset({
     '/wp1', '/wp2', '/site', '/website',
 })
 
+_PUBLIC_PATHS = frozenset({'/get_shared_wishlist'})
+
+_ALLOWED_COMIC_DOMAINS = frozenset({'panini.de', 'www.panini.de', 'comicguide.de', 'www.comicguide.de'})
+
+
+def _validate_comic_url(url: str) -> str | None:
+    try:
+        parsed = urlparse(url)
+        domain = parsed.hostname
+        if not domain:
+            return None
+        if domain in _ALLOWED_COMIC_DOMAINS or any(domain.endswith('.' + d) for d in _ALLOWED_COMIC_DOMAINS):
+            return url
+        return None
+    except Exception:
+        return None
+
 
 @app.before_request
 def verify_api_key() -> tuple[str, int] | None:
     path = request.path.lower()
     if path in _BOT_PATHS or any(path.startswith(p + '/') for p in _BOT_PATHS):
         return '', 404
+    if path in _PUBLIC_PATHS:
+        return None
     if not flask_api_key:
         return jsonify({"error": "Server configuration error: API key not set"}), 500
     if request.headers.get('X-API-Key') != flask_api_key:
@@ -211,6 +231,9 @@ def get_comic_information_route() -> tuple[str, int]:
     if not url.startswith('http'):
         url = 'https://' + url
 
+    if not _validate_comic_url(url):
+        return jsonify({"error": "Domain not allowed"}), 400
+
     cached = _get_cached_comic(url)
     if cached is not None:
         return jsonify({"message": "Comic information fetched from cache", "result": cached}), 200
@@ -219,7 +242,8 @@ def get_comic_information_route() -> tuple[str, int]:
         result = get_information(url)
 
         if isinstance(result, dict) and "error" in result:
-            return jsonify({"error": result["error"]}), 400
+            app.logger.error(f"Comic info error: {result['error']}")
+            return jsonify({"error": "Failed to fetch comic information"}), 400
 
         _set_cached_comic(url, result)
         return jsonify({"message": "Comic information fetched successfully", "result": result}), 200
@@ -228,7 +252,7 @@ def get_comic_information_route() -> tuple[str, int]:
         return jsonify({"error": "An internal error occurred"}), 500
 
 
-@app.route('/get_comic_information_api', methods=['GET', 'POST'])
+@app.route('/get_comic_information_api', methods=['POST'])
 def get_comic_information_api() -> tuple[str, int]:
     if request.method == 'POST':
         data = request.json
@@ -249,6 +273,9 @@ def get_comic_information_api() -> tuple[str, int]:
     if not url.startswith('http'):
         url = 'https://' + url
 
+    if not _validate_comic_url(url):
+        return jsonify({"error": "Domain not allowed"}), 400
+
     cached = _get_cached_comic(url)
     if cached is not None:
         return jsonify({"message": "Comic information fetched from cache", "result": cached}), 200
@@ -257,7 +284,8 @@ def get_comic_information_api() -> tuple[str, int]:
         result = get_information(url)
 
         if isinstance(result, dict) and "error" in result:
-            return jsonify({"error": result["error"]}), 400
+            app.logger.error(f"Comic info error: {result['error']}")
+            return jsonify({"error": "Failed to fetch comic information"}), 400
 
         if isinstance(result, str):
             with contextlib.suppress(json.JSONDecodeError):
@@ -270,7 +298,7 @@ def get_comic_information_api() -> tuple[str, int]:
         return jsonify({"error": "An internal error occurred"}), 500
 
 
-@app.route('/get_comic_information_api/<path:subpath>', methods=['GET', 'POST'])
+@app.route('/get_comic_information_api/<path:subpath>', methods=['POST'])
 @app.route('/get_comic_information/<path:subpath>', methods=['GET', 'POST'])
 def get_comic_information_wildcard(subpath: str | None = None) -> tuple[str, int]:
     if 'api' in request.path:

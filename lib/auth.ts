@@ -7,8 +7,8 @@ const SESSION_COOKIE_NAME = 'session';
 const SESSION_DURATION = '7d';
 
 function getSecretKey(): Uint8Array {
-  const secret = process.env.SESSION_SECRET || process.env.SECRET_KEY;
-  if (!secret) throw new Error('SESSION_SECRET or SECRET_KEY is required');
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error('SESSION_SECRET is required');
   if (secret.length < 32) throw new Error('SESSION_SECRET must be at least 32 characters');
   return new Uint8Array(crypto.createHash('sha256').update(secret).digest());
 }

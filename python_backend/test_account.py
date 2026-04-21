@@ -10,7 +10,13 @@ from chrome_options import get_chrome_options
 
 LOGIN_URL = "https://www.panini.de/shp_deu_de/customer/account/login/"
 
-DEBUG_DIR = os.environ.get("SELENIUM_DEBUG_DIR", "/tmp/selenium_debug")
+DEBUG_DIR = os.environ.get("SELENIUM_DEBUG_DIR", "")
+
+
+def _save_debug_info(driver, label: str) -> None:
+    """Save screenshot and page source for debugging (only if SELENIUM_DEBUG_DIR is set)."""
+    if not DEBUG_DIR:
+        return
 
 
 def _save_debug_info(driver, label: str) -> None:
