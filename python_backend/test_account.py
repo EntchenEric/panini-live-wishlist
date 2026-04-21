@@ -7,6 +7,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from chrome_options import get_chrome_options
 
+LOGIN_URL = "https://www.panini.de/shp_deu_de/customer/account/login/"
+
 
 def handle_login(email: str, password: str) -> str:
     driver = None
@@ -16,36 +18,43 @@ def handle_login(email: str, password: str) -> str:
         driver.set_page_load_timeout(30)
 
         print("Navigating to login page...")
-        driver.get("https://www.panini.de/shp_deu_de/customer/account/login/")
+        driver.get(LOGIN_URL)
+
+        # Check if redirected to queue-it waiting room
+        if "queue-it.net" in driver.current_url:
+            print("Redirected to queue-it waiting room, waiting for redirect back...")
+            WebDriverWait(driver, 120).until(
+                lambda d: "queue-it.net" not in d.current_url
+            )
+            print("Left queue-it, continuing login flow")
 
         try:
             print("Looking for cookie consent button...")
-            WebDriverWait(driver, 10).until(
+            consent_btn = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Nur technische Cookies verwenden')]"))
-            ).click()
+            )
+            consent_btn.click()
             print("Clicked cookie consent button")
         except Exception:
-            pass
+            print("No cookie consent button found, continuing")
 
         print("Waiting for login form fields...")
         email_field = WebDriverWait(driver, 15).until(
-            EC.visibility_of_element_located((By.XPATH, "//input[@placeholder='Email *']"))
+            EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='email'], input[name='login[username]'], input#email"))
         )
         password_field = WebDriverWait(driver, 15).until(
-            EC.visibility_of_element_located((By.XPATH, "//input[@placeholder='Passwort *']"))
+            EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='password'], input[name='login[password]'], input#pass"))
         )
 
-        print("Scrolling to form fields...")
-        driver.execute_script("arguments[0].scrollIntoView(true);", email_field)
-        driver.execute_script("arguments[0].scrollIntoView(true);", password_field)
-
         print("Filling login form...")
-        driver.execute_script("arguments[0].value = arguments[1];", email_field, email)
-        driver.execute_script("arguments[0].value = arguments[1];", password_field, password)
+        email_field.clear()
+        email_field.send_keys(email)
+        password_field.clear()
+        password_field.send_keys(password)
 
         print("Clicking login button...")
         login_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@value='Senden']"))
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit'].action.login, input[type='submit'][value='Senden'], button.action.login"))
         )
         driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
         driver.execute_script("arguments[0].click();", login_button)
