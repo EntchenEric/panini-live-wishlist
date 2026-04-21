@@ -35,6 +35,8 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 COPY . .
 
+RUN mkdir -p /tmp/selenium_debug && chmod 777 /tmp/selenium_debug
+
 EXPOSE 5000
 
 CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:5000", "-c", "gunicorn.conf.py"]

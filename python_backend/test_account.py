@@ -1,3 +1,4 @@
+import os
 import traceback
 
 from selenium import webdriver
@@ -8,6 +9,28 @@ from selenium.webdriver.support.ui import WebDriverWait
 from chrome_options import get_chrome_options
 
 LOGIN_URL = "https://www.panini.de/shp_deu_de/customer/account/login/"
+
+DEBUG_DIR = os.environ.get("SELENIUM_DEBUG_DIR", "/tmp/selenium_debug")
+
+
+def _save_debug_info(driver, label: str) -> None:
+    """Save screenshot and page source for debugging."""
+    os.makedirs(DEBUG_DIR, exist_ok=True)
+    try:
+        path = os.path.join(DEBUG_DIR, f"{label}_screenshot.png")
+        driver.save_screenshot(path)
+        print(f"Debug screenshot saved to {path}")
+    except Exception:
+        pass
+    try:
+        path = os.path.join(DEBUG_DIR, f"{label}_source.html")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        print(f"Debug page source saved to {path}")
+    except Exception:
+        pass
+    print(f"Current URL: {driver.current_url}")
+    print(f"Page title: {driver.title}")
 
 
 def handle_login(email: str, password: str) -> str:
@@ -38,11 +61,18 @@ def handle_login(email: str, password: str) -> str:
         except Exception:
             print("No cookie consent button found, continuing")
 
+        print(f"Current URL after cookie: {driver.current_url}")
+
         print("Waiting for login form fields...")
-        email_field = WebDriverWait(driver, 15).until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='email'], input[name='login[username]'], input#email"))
-        )
-        password_field = WebDriverWait(driver, 15).until(
+        try:
+            email_field = WebDriverWait(driver, 15).until(
+                EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='email'], input[name='login[username]'], input#email"))
+            )
+        except Exception:
+            _save_debug_info(driver, "email_field_not_found")
+            raise
+
+        password_field = WebDriverWait(driver, 10).until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='password'], input[name='login[password]'], input#pass"))
         )
 
@@ -67,12 +97,15 @@ def handle_login(email: str, password: str) -> str:
             print("Login successful")
             return "Login successful"
         except Exception:
+            _save_debug_info(driver, "login_verification_failed")
             print("Login verification failed")
             return "Login failed"
 
     except Exception as e:
         print(f"Error in handle_login: {e}")
         traceback.print_exc()
+        if driver:
+            _save_debug_info(driver, "login_error")
         return "Login failed"
     finally:
         if driver:
